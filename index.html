@@ -55,18 +55,18 @@
     <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-stone-800">
       <div class="bg-white/95 rounded-xl p-4">
         <div class="text-xs font-bold text-orange-600 mb-1">📺 公域 · 今天要拍</div>
-        <div class="font-bold text-sm">英短肥肥的 3 大保命法則</div>
-        <div class="text-xs text-stone-500 mt-1">Mode B · 教學乾貨型 · 配《飼料成分地雷懶人包》</div>
+        <div id="today-video-title" class="font-bold text-sm">—</div>
+        <div id="today-video-meta" class="text-xs text-stone-500 mt-1">點下方「📺 只生短影音」生成本週腳本</div>
       </div>
       <div class="bg-white/95 rounded-xl p-4">
         <div class="text-xs font-bold text-orange-600 mb-1">💬 私域 · 今天的話題</div>
-        <div class="font-bold text-sm">「你家貓主子最近便便長怎樣？」</div>
-        <div class="text-xs text-stone-500 mt-1">→ 自然導入藍藻益生菌</div>
+        <div id="today-community-topic" class="font-bold text-sm">—</div>
+        <div id="today-community-meta" class="text-xs text-stone-500 mt-1">點下方「💬 只生私域」生成本週話題</div>
       </div>
       <div class="bg-white/95 rounded-xl p-4">
         <div class="text-xs font-bold text-orange-600 mb-1">📱 IG 限動 · 今天 7 篇</div>
-        <div class="font-bold text-sm">已排好 · 待發 7 篇</div>
-        <div class="text-xs text-stone-500 mt-1">每篇文案下方有 · 直接複製貼上</div>
+        <div id="today-story-status" class="font-bold text-sm">—</div>
+        <div id="today-story-meta" class="text-xs text-stone-500 mt-1">點下方「📱 只生 IG 限動」生成本週文案</div>
       </div>
     </div>
   </div>
@@ -643,9 +643,56 @@ function copyToLine() {
   });
 }
 
+// 「今日任務」即時更新（從目前 videos / community / igStories 抓今天）
+function updateTodayTask() {
+  const days = ['日','一','二','三','四','五','六'];
+  const today = new Date();
+  const todayCh = days[today.getDay()];
+  const todayLabel = `${today.getMonth()+1}/${today.getDate()} (${todayCh})`;
+  const labelEl = document.getElementById('today-label');
+  if (labelEl) labelEl.textContent = todayLabel;
+
+  // 公域短影音
+  const todayVideo = videos.find(v => v.day === todayCh);
+  const vTitle = document.getElementById('today-video-title');
+  const vMeta = document.getElementById('today-video-meta');
+  if (todayVideo) {
+    if (vTitle) vTitle.textContent = todayVideo.title;
+    if (vMeta) vMeta.textContent = `Mode ${todayVideo.mode} · ${todayVideo.cta || ''}`;
+  } else {
+    if (vTitle) vTitle.textContent = '今天非上片日';
+    if (vMeta) vMeta.textContent = '休息一下，或拍備用素材';
+  }
+
+  // 私域話題
+  const todayComm = community.find(c => c.day === todayCh);
+  const cTopic = document.getElementById('today-community-topic');
+  const cMeta = document.getElementById('today-community-meta');
+  if (todayComm) {
+    if (cTopic) cTopic.textContent = `「${todayComm.topic}」`;
+    if (cMeta) cMeta.textContent = todayComm.convert === '-' ? `目的：${todayComm.goal}` : `→ 自然導入 ${todayComm.convert}`;
+  } else {
+    if (cTopic) cTopic.textContent = '尚未生成';
+    if (cMeta) cMeta.textContent = '點下方「💬 只生私域」生成本週話題';
+  }
+
+  // IG 限動
+  const todayStories = igStories[todayCh] || [];
+  const sStatus = document.getElementById('today-story-status');
+  const sMeta = document.getElementById('today-story-meta');
+  if (todayStories.length > 0) {
+    if (sStatus) sStatus.textContent = `${todayStories.length} 篇已排好`;
+    if (sMeta) sMeta.textContent = `從訂單 → 投票 → 香菇日常 → 痛點 → 觀念 → CTA`;
+  } else {
+    if (sStatus) sStatus.textContent = '尚未生成';
+    if (sMeta) sMeta.textContent = '點下方「📱 只生 IG 限動」生成本週文案';
+  }
+}
+
 renderVideos();
 renderCommunity();
 renderStories();
+updateTodayTask();
 
 // ============ 設定 / API 整合 ============
 const STORAGE_KEY = 'xiang_gu_ba_settings';
@@ -985,6 +1032,7 @@ ${seed ? `**本週方向：** ${seed}\n\n` : ''}${cfg.promptExtra}
     if (plan.videos)     { videos.length = 0; videos.push(...plan.videos); renderVideos(); }
     if (plan.community)  { community.length = 0; community.push(...plan.community); renderCommunity(); }
     if (plan.ig_stories) { Object.keys(igStories).forEach(k => delete igStories[k]); Object.assign(igStories, plan.ig_stories); renderStories(); }
+    updateTodayTask(); // 更新最上方「今日任務」卡
 
     // 合併到 lastPlan（不覆蓋未生成的部分）
     const existing = JSON.parse(localStorage.getItem('xiang_gu_ba_lastPlan') || '{}');
@@ -1018,6 +1066,7 @@ if (lastPlan) {
     if (plan.videos)     { videos.length = 0; videos.push(...plan.videos); renderVideos(); }
     if (plan.community)  { community.length = 0; community.push(...plan.community); renderCommunity(); }
     if (plan.ig_stories) { Object.keys(igStories).forEach(k => delete igStories[k]); Object.assign(igStories, plan.ig_stories); renderStories(); }
+    updateTodayTask();
   } catch (e) { console.warn('上次計畫還原失敗', e); }
 }
 </script>
