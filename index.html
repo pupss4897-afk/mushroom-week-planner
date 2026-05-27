@@ -74,11 +74,7 @@
 
 <!-- 操作列 -->
 <section class="max-w-6xl mx-auto px-4 mt-5 flex flex-wrap gap-3 items-center">
-  <button onclick="generateWeek()" id="gen-btn"
-          class="bg-orange-600 hover:bg-orange-700 text-white font-bold px-5 py-2.5 rounded-full shadow-md transition disabled:opacity-50">
-    🔄 AI 生成下週新計畫
-  </button>
-  <input type="text" id="seed-input" placeholder="(選填) 給 AI 一句方向，例如：主推藍藻菌 / 配合菇粉夏日活動"
+  <input type="text" id="seed-input" placeholder="(選填) 給 AI 方向：主推藍藻菌 / 配合菇粉夏日活動..."
          class="flex-1 min-w-[240px] border border-stone-300 rounded-full px-4 py-2 text-sm focus:outline-none focus:border-orange-400">
   <button onclick="copyToLine()"
           class="bg-green-600 hover:bg-green-700 text-white font-bold px-5 py-2.5 rounded-full shadow-md transition">
@@ -88,7 +84,31 @@
           class="bg-stone-200 hover:bg-stone-300 text-stone-700 font-bold px-5 py-2.5 rounded-full transition">
     ⚙️ 設定
   </button>
-  <div id="api-status" class="text-xs text-stone-500"></div>
+</section>
+
+<!-- AI 生成按鈕列（4 顆） -->
+<section class="max-w-6xl mx-auto px-4 mt-3">
+  <div class="bg-white rounded-2xl p-3 shadow-sm flex flex-wrap gap-2 items-center">
+    <span class="text-sm font-bold text-stone-700 ml-1">AI 生成：</span>
+    <button onclick="generatePart('video')" id="gen-video"
+            class="bg-orange-600 hover:bg-orange-700 text-white font-bold px-4 py-2 rounded-full shadow text-sm transition disabled:opacity-50">
+      📺 只生短影音 <span class="text-xs opacity-80">~30s</span>
+    </button>
+    <button onclick="generatePart('community')" id="gen-community"
+            class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-full shadow text-sm transition disabled:opacity-50">
+      💬 只生私域 <span class="text-xs opacity-80">~60s</span>
+    </button>
+    <button onclick="generatePart('story')" id="gen-story"
+            class="bg-pink-600 hover:bg-pink-700 text-white font-bold px-4 py-2 rounded-full shadow text-sm transition disabled:opacity-50">
+      📱 只生 IG 限動 <span class="text-xs opacity-80">~30s</span>
+    </button>
+    <span class="text-stone-300 mx-1">|</span>
+    <button onclick="generatePart('all')" id="gen-all"
+            class="bg-stone-800 hover:bg-black text-white font-bold px-4 py-2 rounded-full shadow text-sm transition disabled:opacity-50">
+      🔄 全部一起生 <span class="text-xs opacity-80">~2-4min</span>
+    </button>
+    <div id="api-status" class="text-xs text-stone-500 ml-auto"></div>
+  </div>
 </section>
 
 <!-- ⚙️ 設定彈窗 -->
@@ -785,7 +805,110 @@ function nextMondayLabel() {
   return `${f(monday)} (一) – ${f(sunday)} (日)`;
 }
 
-async function generateWeek() {
+// 各區塊的設定（user prompt + 載入訊息 + 按鈕 ID）
+const PART_CONFIG = {
+  video: {
+    label: '📺 短影音',
+    btnId: 'gen-video',
+    promptExtra: `**只生成 3 支公域短影音**（週一週三週五，Mode A/B 混合）。
+
+完整套用 Mode A/B 規則，每支含 hook + 5 段分鏡（0-3s/4-15s/16-30s/30-45s/45-60s）+ CTA + 轉化目標。
+
+JSON 結構：
+\`\`\`
+{
+  "week_range": "5/28 (一) – 6/3 (日)",
+  "videos": [
+    {"day":"一","mode":"B","title":"...","hook":"...",
+     "structure":[{"sec":"0-3s","text":"..."}, ...],
+     "cta":"...","convert":"藍藻益生菌"}
+  ]
+}
+\`\`\``,
+    loadingMsgs: [
+      '挑 Mode A/B 主題分配...',
+      '寫週一短影音腳本...',
+      '寫週三短影音腳本...',
+      '寫週五短影音腳本...',
+      '校對 hook + CTA + 香菇案例...',
+    ]
+  },
+  community: {
+    label: '💬 私域社群',
+    btnId: 'gen-community',
+    promptExtra: `**只生成 7 天私域社群話題**，每天 5 開場 + 10 接話 + 5 轉化 = 20 對話腳本。
+
+角色固定：👨‍⚕️ 香菇爸 / 🐾 鐵粉花花媽 / 🐾 阿樂爸 / 🐾 群友(Coco媽/Luna媽/奶茶媽) / 🐾 絆姐 / 新朋友
+
+JSON 結構：
+\`\`\`
+{
+  "week_range": "5/28 (一) – 6/3 (日)",
+  "community": [
+    {"day":"一","topic":"...","goal":"...","convert":"藍藻益生菌",
+     "openers":[{"who":"群友｜Coco媽","text":"..."}, ... 共 5],
+     "responses":[{"who":"香菇爸","text":"..."}, ... 共 10],
+     "converts":[{"who":"絆姐","text":"..."}, ... 共 5]}
+  ]
+}
+\`\`\``,
+    loadingMsgs: [
+      '排 7 天主題分配...',
+      '寫 5 開場（群友發起）...',
+      '寫 10 接話（你 + 鐵粉）...',
+      '寫 5 轉化（自然導產品）...',
+      '安排絆姐丟賴 + 稀缺性...',
+    ]
+  },
+  story: {
+    label: '📱 IG 限動',
+    btnId: 'gen-story',
+    promptExtra: `**只生成 7 天 × 7 篇 IG 限動 = 49 篇文案**。
+
+每天嚴格按 7+1 順位：1-2 訂單+互動 / 3 香菇日常 / 4-5 恐懼痛點 / 6-7 價值觀念 / 第 7 篇 CTA。
+
+JSON 結構：
+\`\`\`
+{
+  "week_range": "5/28 (一) – 6/3 (日)",
+  "ig_stories": {
+    "一": [{"type":"訂單","text":"..."}, ...共 7 篇],
+    "二": [...], "三": [...], "四": [...], "五": [...], "六": [...], "日": [...]
+  }
+}
+\`\`\`
+type 必須是：訂單/投票/香菇日常/恐懼痛點/知識縫隙/價值觀念/今日影片/共鳴/CTA/感謝/產品鋪墊 之一`,
+    loadingMsgs: [
+      '安排 7 天 × 7 篇順位...',
+      '寫週一/二的恐懼痛點...',
+      '寫週三/四的價值觀念...',
+      '寫週五/六的香菇日常...',
+      '校對逆人性思考 + 不報品名...',
+    ]
+  },
+  all: {
+    label: '🔄 全部',
+    btnId: 'gen-all',
+    promptExtra: `**生成完整週計畫（3 塊都要）**：
+- 3 支短影音（週一/三/五，Mode A/B 混合）
+- 7 天私域社群每日 5+10+5 對話
+- 7 天 × 7 IG 限動
+
+完整 JSON 結構（包含 videos / community / ig_stories 三大區塊，week_range）。`,
+    loadingMsgs: [
+      '套用 14 個社群模組 + IG 7+1 + 私域 13 步...',
+      '生成週一週三週五的短影音腳本...',
+      '排私域社群 7 天 × 20 對話腳本...',
+      '排 IG 限動 49 篇，確認 7+1 順位...',
+      '校對 emoji 與用詞（毛家長/香菇）...',
+    ]
+  }
+};
+
+async function generatePart(type) {
+  const cfg = PART_CONFIG[type];
+  if (!cfg) return;
+
   const s = loadSettings();
   if (!s.apiKey) {
     alert('⚠️ 請先到「⚙️ 設定」貼上你的 Claude API 金鑰');
@@ -794,30 +917,25 @@ async function generateWeek() {
   }
 
   const seed = document.getElementById('seed-input').value.trim();
-  const userPrompt = `請為我生成下週(${nextMondayLabel()})的完整內容計畫。
+  const userPrompt = `請為我生成下週（${nextMondayLabel()}）的內容。
 
-${seed ? `**本週方向:** ${seed}\n\n` : ''}基本要求:
-- 3 支公域短影音(週一週三週五,Mode A/B 混合)
-- 7 天私域社群每日話題(每日 5+10+5 = 20 對話腳本)
-- 7 天 × 7 篇 IG 限動(共 49 篇)
+${seed ? `**本週方向：** ${seed}\n\n` : ''}${cfg.promptExtra}
 
-直接輸出 JSON,不要其他文字。`;
+直接輸出 JSON，不要其他文字。`;
 
+  // 開啟載入畫面 + 禁用所有生成按鈕
   document.getElementById('loading-modal').classList.remove('hidden');
   document.getElementById('loading-modal').classList.add('flex');
-  document.getElementById('gen-btn').disabled = true;
+  document.getElementById('loading-text').textContent = `準備生成 ${cfg.label}...`;
+  ['gen-video','gen-community','gen-story','gen-all'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = true;
+  });
 
-  const loadingMsgs = [
-    '套用 14 個社群模組 + IG 7+1 + 私域 13 步...',
-    '生成週一週三週五的短影音腳本...',
-    '排私域社群 7 天 × 20 對話腳本...',
-    '排 IG 限動 49 篇,確認 7+1 順位...',
-    '校對 emoji 與用詞(毛家長/香菇)...',
-  ];
   let msgIdx = 0;
   const msgInterval = setInterval(() => {
-    msgIdx = (msgIdx + 1) % loadingMsgs.length;
-    document.getElementById('loading-text').textContent = loadingMsgs[msgIdx];
+    msgIdx = (msgIdx + 1) % cfg.loadingMsgs.length;
+    document.getElementById('loading-text').textContent = cfg.loadingMsgs[msgIdx];
   }, 6000);
 
   try {
@@ -831,7 +949,7 @@ ${seed ? `**本週方向:** ${seed}\n\n` : ''}基本要求:
       },
       body: JSON.stringify({
         model: s.model,
-        max_tokens: 32000,
+        max_tokens: type === 'all' ? 32000 : 16000,
         system: SYSTEM_PROMPT,
         messages: [{ role: 'user', content: userPrompt }],
       }),
@@ -844,18 +962,10 @@ ${seed ? `**本週方向:** ${seed}\n\n` : ''}基本要求:
 
     const data = await response.json();
     const text = data.content[0].text.trim();
-    console.log('Claude 原始回應:', text);
+    console.log(`Claude 原始回應 [${type}]:`, text);
 
-    // 強化版 JSON 解析:
-    // 1. 移除 markdown 程式碼包裝
-    // 2. 找第一個 { 到最後一個 }
-    // 3. 嘗試 parse,失敗就顯示原文除錯
     let jsonText = text;
-
-    // 移除 ```json 開頭 / ``` 結尾(支援不完整)
     jsonText = jsonText.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?\s*```\s*$/, '');
-
-    // 找第一個 { 和最後一個 }
     const startIdx = jsonText.indexOf('{');
     const endIdx = jsonText.lastIndexOf('}');
     if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
@@ -867,31 +977,35 @@ ${seed ? `**本週方向:** ${seed}\n\n` : ''}基本要求:
       plan = JSON.parse(jsonText);
     } catch (parseErr) {
       console.error('解析失敗的文字:', jsonText.slice(0, 500));
-      // 第二次嘗試:可能 JSON 被截斷了,試著補上缺的閉合
-      throw new Error(`JSON 解析失敗:${parseErr.message}\n原始開頭:${text.slice(0, 100)}...`);
+      throw new Error(`JSON 解析失敗：${parseErr.message}\n原始開頭：${text.slice(0, 100)}...`);
     }
 
-    // 更新 UI
+    // 部分更新（不影響其他區塊）
     if (plan.week_range) document.getElementById('week-range').textContent = plan.week_range;
     if (plan.videos)     { videos.length = 0; videos.push(...plan.videos); renderVideos(); }
     if (plan.community)  { community.length = 0; community.push(...plan.community); renderCommunity(); }
     if (plan.ig_stories) { Object.keys(igStories).forEach(k => delete igStories[k]); Object.assign(igStories, plan.ig_stories); renderStories(); }
 
-    // 儲存到 localStorage (下次開瀏覽器還在)
-    localStorage.setItem('xiang_gu_ba_lastPlan', JSON.stringify(plan));
+    // 合併到 lastPlan（不覆蓋未生成的部分）
+    const existing = JSON.parse(localStorage.getItem('xiang_gu_ba_lastPlan') || '{}');
+    const merged = { ...existing, ...plan };
+    localStorage.setItem('xiang_gu_ba_lastPlan', JSON.stringify(merged));
 
-    document.getElementById('loading-text').innerHTML = '✅ 完成!向下捲動看本週計畫';
+    document.getElementById('loading-text').innerHTML = `✅ ${cfg.label} 完成！`;
     setTimeout(() => {
       document.getElementById('loading-modal').classList.add('hidden');
       document.getElementById('loading-modal').classList.remove('flex');
-    }, 1500);
+    }, 1200);
 
   } catch (err) {
     console.error(err);
     document.getElementById('loading-text').innerHTML = `❌ 失敗: ${err.message}<br><br><button onclick="document.getElementById('loading-modal').classList.add('hidden')" class="bg-orange-500 text-white px-4 py-2 rounded-lg text-sm">關閉</button>`;
   } finally {
     clearInterval(msgInterval);
-    document.getElementById('gen-btn').disabled = false;
+    ['gen-video','gen-community','gen-story','gen-all'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = false;
+    });
   }
 }
 
