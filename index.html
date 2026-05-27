@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>香菇爸 × 週行程助理</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Noto Sans TC', -apple-system, sans-serif; }
+  body { background: linear-gradient(180deg, #fdfaf3 0%, #f5e8d5 100%); min-height: 100vh; }
+  .glass { background: rgba(255,255,255,0.75); backdrop-filter: blur(10px); }
+  .today-glow { box-shadow: 0 0 0 3px #f97316, 0 8px 30px rgba(249, 115, 22, 0.3); }
+  .card-hover { transition: all 0.2s; }
+  .card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.08); }
+  details > summary { list-style: none; cursor: pointer; }
+  details > summary::-webkit-details-marker { display: none; }
+  details[open] .chevron { transform: rotate(180deg); }
+  .chevron { transition: transform 0.2s; }
+  .ig-story { font-size: 13px; line-height: 1.5; }
+  .pulse-dot::after {
+    content: ''; display: inline-block; width: 8px; height: 8px; background: #22c55e;
+    border-radius: 50%; margin-left: 6px; animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+</style>
+</head>
+<body class="text-stone-800">
+
+<!-- Header -->
+<header class="bg-gradient-to-r from-orange-700 to-amber-600 text-white py-6 px-4 shadow-lg">
+  <div class="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+    <div>
+      <h1 class="text-2xl md:text-3xl font-black tracking-wide">🍄 香菇爸 × 週行程助理</h1>
+      <p class="text-orange-100 text-sm mt-1">給綸綸老師 + 合作人 · 每天該做什麼一目了然</p>
+    </div>
+    <div class="text-right">
+      <div class="text-xs text-orange-100">本週週次</div>
+      <div id="week-range" class="font-bold text-lg">5/25 (一) – 5/31 (日)</div>
+    </div>
+  </div>
+</header>
+
+<!-- 今日任務（最上方 hero）-->
+<section class="max-w-6xl mx-auto px-4 mt-6">
+  <div class="bg-gradient-to-br from-orange-500 to-amber-500 text-white rounded-2xl p-6 shadow-xl today-glow">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <div class="text-orange-100 text-sm font-bold tracking-widest">今日任務 <span class="pulse-dot"></span></div>
+        <div id="today-label" class="text-3xl font-black">5/27 (三)</div>
+      </div>
+      <div class="text-5xl">🐾</div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-stone-800">
+      <div class="bg-white/95 rounded-xl p-4">
+        <div class="text-xs font-bold text-orange-600 mb-1">📺 公域 · 今天要拍</div>
+        <div class="font-bold text-sm">英短肥肥的 3 大保命法則</div>
+        <div class="text-xs text-stone-500 mt-1">Mode B · 教學乾貨型 · 配《飼料成分地雷懶人包》</div>
+      </div>
+      <div class="bg-white/95 rounded-xl p-4">
+        <div class="text-xs font-bold text-orange-600 mb-1">💬 私域 · 今天的話題</div>
+        <div class="font-bold text-sm">「你家貓主子最近便便長怎樣？」</div>
+        <div class="text-xs text-stone-500 mt-1">→ 自然導入藍藻益生菌</div>
+      </div>
+      <div class="bg-white/95 rounded-xl p-4">
+        <div class="text-xs font-bold text-orange-600 mb-1">📱 IG 限動 · 今天 7 篇</div>
+        <div class="font-bold text-sm">已排好 · 待發 7 篇</div>
+        <div class="text-xs text-stone-500 mt-1">每篇文案下方有 · 直接複製貼上</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 操作列 -->
+<section class="max-w-6xl mx-auto px-4 mt-5 flex flex-wrap gap-3 items-center">
+  <button onclick="generateWeek()" id="gen-btn"
+          class="bg-orange-600 hover:bg-orange-700 text-white font-bold px-5 py-2.5 rounded-full shadow-md transition disabled:opacity-50">
+    🔄 AI 生成下週新計畫
+  </button>
+  <input type="text" id="seed-input" placeholder="(選填) 給 AI 一句方向，例如：主推藍藻菌 / 配合菇粉夏日活動"
+         class="flex-1 min-w-[240px] border border-stone-300 rounded-full px-4 py-2 text-sm focus:outline-none focus:border-orange-400">
+  <button onclick="copyToLine()"
+          class="bg-green-600 hover:bg-green-700 text-white font-bold px-5 py-2.5 rounded-full shadow-md transition">
+    💚 複製給合作人
+  </button>
+  <button onclick="openSettings()"
+          class="bg-stone-200 hover:bg-stone-300 text-stone-700 font-bold px-5 py-2.5 rounded-full transition">
+    ⚙️ 設定
+  </button>
+  <div id="api-status" class="text-xs text-stone-500"></div>
+</section>
+
+<!-- ⚙️ 設定彈窗 -->
+<div id="settings-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center px-4">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+    <h3 class="text-lg font-black mb-4">⚙️ 設定</h3>
+    <label class="block text-sm font-bold mb-1">Claude API 金鑰</label>
+    <p class="text-xs text-stone-500 mb-2">儲存在你瀏覽器本機(localStorage),不會上傳任何地方</p>
+    <input type="password" id="api-key-input" placeholder="sk-ant-api03-..."
+           class="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm font-mono">
+    <label class="block text-sm font-bold mt-4 mb-1">模型</label>
+    <select id="model-select" class="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm">
+      <option value="claude-sonnet-4-6">Sonnet 4.6 (推薦,平衡品質與成本)</option>
+      <option value="claude-opus-4-7">Opus 4.7 (最高品質,較貴)</option>
+      <option value="claude-haiku-4-5-20251001">Haiku 4.5 (最便宜,品質尚可)</option>
+    </select>
+    <div class="text-xs text-stone-500 mt-4 bg-stone-50 p-3 rounded-lg">
+      <strong>每次生成成本估算：</strong><br>
+      Sonnet: ~NT$4 · Opus: ~NT$20 · Haiku: ~NT$1.5<br>
+      <span class="text-stone-400">$5 USD ≈ Sonnet 用 37 週 / Haiku 用 100+ 週</span>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button onclick="saveSettings()" class="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 rounded-lg">儲存</button>
+      <button onclick="closeSettings()" class="flex-1 bg-stone-200 hover:bg-stone-300 font-bold py-2.5 rounded-lg">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- ⏳ 載入畫面 -->
+<div id="loading-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center px-4">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center">
+    <div class="text-5xl mb-3 animate-bounce">🍄</div>
+    <h3 class="text-lg font-black mb-2">香菇爸 AI 正在思考...</h3>
+    <p id="loading-text" class="text-sm text-stone-600">套用 14 個社群模組 + IG 7+1 + 私域 13 步...</p>
+    <div class="mt-4 h-2 bg-stone-100 rounded-full overflow-hidden">
+      <div class="h-full bg-orange-500 animate-pulse" style="width: 70%"></div>
+    </div>
+    <p class="text-xs text-stone-400 mt-3">通常 30-60 秒,別關掉這個視窗</p>
+  </div>
+</div>
+
+<main class="max-w-6xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+  <!-- 📺 公域短影音 -->
+  <section class="bg-white rounded-2xl shadow-md p-5">
+    <h2 class="text-xl font-black text-stone-800 mb-1 flex items-center">📺 本週公域短影音</h2>
+    <p class="text-xs text-stone-500 mb-4">3 支腳本 · 直接拍 · 含分鏡 + CTA</p>
+
+    <div class="space-y-3" id="video-list"></div>
+  </section>
+
+  <!-- 💬 私域社群 -->
+  <section class="bg-white rounded-2xl shadow-md p-5">
+    <h2 class="text-xl font-black text-stone-800 mb-1 flex items-center">💬 本週私域社群</h2>
+    <p class="text-xs text-stone-500 mb-4">每日 1 個話題 · 引互動 → 變現藍藻 / 高端飼料</p>
+
+    <div class="space-y-2" id="community-list"></div>
+  </section>
+
+  <!-- 📱 IG 限動 -->
+  <section class="bg-white rounded-2xl shadow-md p-5">
+    <h2 class="text-xl font-black text-stone-800 mb-1 flex items-center">📱 本週 IG 限動</h2>
+    <p class="text-xs text-stone-500 mb-4">7 天 × 7 篇 = 49 篇 · 已打好文案</p>
+
+    <div class="space-y-2" id="story-list"></div>
+  </section>
+</main>
+
+<footer class="max-w-6xl mx-auto px-4 pb-10 text-center text-xs text-stone-400">
+  V1 · Mock 資料展示 · 版型確認後接 Claude API 自動生成
+</footer>
+
+<script>
+// ============ DATA ============
+const days = ['一','二','三','四','五','六','日'];
+
+// 本週公域短影音（3 支腳本，混 Mode A/B）
+const videos = [
+  {
+    day: '一',
+    mode: 'B',
+    title: '英短肥肥的 3 大保命法則',
+    hook: '你的英短超過 5 公斤了嗎？走路肉會抖那種，這支你一定要看完',
+    structure: [
+      {sec:'0-3s', text:'(抱起香菇) 妳敢信嗎，超重 1 公斤，貓的壽命會少 4-6 年'},
+      {sec:'4-15s', text:'我家香菇以前 5.7 公斤，走路肉都在抖；現在 4.3，醫生都說好棒'},
+      {sec:'16-30s', text:'第一，餵得多不如餵得精；第二，看熱量不是看價錢；第三，每週量一次體重'},
+      {sec:'30-45s', text:'這不是學壞了，是長大了。但長大如果是橫著長，那真的要踩煞車'},
+      {sec:'45-60s', text:'想要完整《飼料成分地雷懶人包》的，留言【長壽】我發給你。養貓看香菇爸頻道就對了'},
+    ],
+    cta: '🔵 任務型 · 留言【長壽】→ 配《飼料成分地雷懶人包》',
+    convert: '高端餐飼料',
+  },
+  {
+    day: '三',
+    mode: 'A',
+    title: '貓咪一直舔自己的家長，這題我想了一陣子',
+    hook: '這題我其實想了一陣子 —— 如果你家主子最近一直舔自己舔到禿，這支你可以慢慢看',
+    structure: [
+      {sec:'0-3s', text:'(慢鏡頭看香菇) 這題我不想講太快'},
+      {sec:'4-15s', text:'過度理毛可能是壓力，也可能是皮膚問題，這兩個我都不能幫你下結論'},
+      {sec:'16-30s', text:'我只能分享我看過的狀況。每隻貓狀況差很多，我不會幫你判斷'},
+      {sec:'30-45s', text:'(留白 2 秒，摸貓) 如果你現在有點焦慮，先深呼吸。先找你的獸醫'},
+      {sec:'45-60s', text:'這支我講到這裡，剩下的可以留言慢慢聊。你不用現在決定 💗'},
+    ],
+    cta: '🟢 純陪伴 · 留個「有」就好',
+    convert: '無 (信任建立)',
+  },
+  {
+    day: '五',
+    mode: 'B',
+    title: '99% 的人選飼料都看錯這 3 個地方',
+    hook: '你拿起飼料袋第一眼在看什麼？如果還在看價錢，這支幫你省下 80% 試錯成本',
+    structure: [
+      {sec:'0-3s', text:'(舉飼料袋) 這 3 個位置你不看，貓就會吃出問題'},
+      {sec:'4-15s', text:'第一個位置：原料表前 5 名。動物性蛋白要佔幾名？至少 3 個'},
+      {sec:'16-30s', text:'第二個：碳水化合物比例。超過 15% 就是糖貓警示。香菇吃的是 11%'},
+      {sec:'30-45s', text:'第三個：穀物 vs 無穀。不是無穀就好，是要看「替代物」是什麼'},
+      {sec:'45-60s', text:'我把這 3 個檢查點做成懶人包了，留言【飼料】我發給你。養貓看香菇爸頻道就對了'},
+    ],
+    cta: '🔵 任務型 · 留言【飼料】→ 配《飼料成分地雷懶人包》',
+    convert: '高端餐飼料',
+  },
+];
+
+// 本週私域社群（7 天 · 每天 1 主題 · 每主題 5+10+5 = 20 對話腳本）
+// 角色：👨‍⚕️ 香菇爸 / 🐾 鐵粉花花媽 / 🐾 絆姐 / 🐾 群友(Coco媽/Luna媽/阿樂爸/奶茶媽/新朋友)
+const community = [
+  {day:'一', topic:'你家貓最近瘦了還胖了？分享一下', goal:'互動暖場', convert:'-',
+    openers: [
+      {who:'群友｜Coco媽',  text:'問大家一下～最近主子體重有沒有什麼變化呀？'},
+      {who:'群友｜Luna媽',  text:'天氣熱了，我家貓吃變少了 你們也是嗎🤣'},
+      {who:'群友｜阿樂爸',  text:'今天幫主子量體重，居然胖了 0.3 公斤...'},
+      {who:'群友｜奶茶媽',  text:'冬天的肉夏天還沒消，這事大家有遇到嗎😂'},
+      {who:'新朋友',        text:'第一次貼，想問大家多久量一次主子體重比較好？'},
+    ],
+    responses: [
+      {who:'香菇爸',        text:'其實 1-2 週量一次就夠了 ❤️ 我都早上空腹量比較準'},
+      {who:'鐵粉｜花花媽',  text:'我也是 1 週一次！記在手機備忘錄裡，可以看趨勢'},
+      {who:'群友｜Luna媽',  text:'香菇爸講的對～昨天我才被獸醫提醒'},
+      {who:'香菇爸',        text:'家裡有體重秤就好，不用買特別的 😂'},
+      {who:'群友｜阿樂爸',  text:'+1 我都是抱在手上一起量再扣自己'},
+      {who:'鐵粉｜花花媽',  text:'最重要是看趨勢～不是看一次數字'},
+      {who:'香菇爸',        text:'對～「突然胖一公斤」跟「半年慢慢胖」差很多'},
+      {who:'群友｜Coco媽',  text:'這個我懂！我家主子之前突然胖才發現有問題'},
+      {who:'香菇爸',        text:'品種貓的話 4-5 公斤是合理範圍，超過要關心一下'},
+      {who:'群友｜奶茶媽',  text:'我家奶茶 5.2 結紮後就上來了... 焦慮 🥲'},
+    ],
+    converts: [
+      {who:'香菇爸',        text:'結紮後代謝慢是真的～我香菇以前 5.7 都這樣'},
+      {who:'香菇爸',        text:'後來我換到 11% 低碳水的飼料，現在 4.3 健康很多'},
+      {who:'鐵粉｜花花媽',  text:'真的香菇爸的高端餐我也是吃了之後體態變好🥰'},
+      {who:'群友｜奶茶媽',  text:'@香菇爸 高端餐是哪一款啊？想試看看'},
+      {who:'絆姐',          text:'(丟賴)有想了解的家長私訊~ 我幫您介紹體驗組額度❤️'},
+    ]
+  },
+  {day:'二', topic:'問問大家：你家主子最愛的零食是哪一款？', goal:'認識口味偏好', convert:'高端飼料舖墊',
+    openers: [
+      {who:'群友｜Coco媽',  text:'今天來分享～你家主子最愛的零食是什麼？'},
+      {who:'群友｜Luna媽',  text:'我家 Luna 只認小魚乾 ... 別的看都不看😂'},
+      {who:'群友｜阿樂爸',  text:'有人家裡跟我一樣只給凍乾的嗎？'},
+      {who:'新朋友',        text:'想問大家貓零食頻率多久一次比較好啊？'},
+      {who:'群友｜奶茶媽',  text:'奶茶最近超挑！原本的零食不吃了 哭'},
+    ],
+    responses: [
+      {who:'香菇爸',        text:'我家香菇是凍乾派，但其實不要太常給 😂'},
+      {who:'鐵粉｜花花媽',  text:'我家也是凍乾，搭飼料一起拌～'},
+      {who:'香菇爸',        text:'零食一週 2-3 次就好，不要每天 🥹'},
+      {who:'群友｜Luna媽',  text:'每天給的後果就是不吃正餐 🤣'},
+      {who:'香菇爸',        text:'對～主餐才是營養來源，零食是樂趣不是必需'},
+      {who:'鐵粉｜花花媽',  text:'這就是香菇爸常講的「精準餵食」'},
+      {who:'群友｜Coco媽',  text:'精準餵食是什麼概念啊？想學起來'},
+      {who:'香菇爸',        text:'簡單講：看熱量 + 看成分，不是越多越好'},
+      {who:'群友｜阿樂爸',  text:'我自從學了這個後 主子體態真的差很多'},
+      {who:'鐵粉｜花花媽',  text:'+1 我也是這樣～'},
+    ],
+    converts: [
+      {who:'香菇爸',        text:'主餐挑得好，零食就不用搞那麼多花樣 ❤️'},
+      {who:'香菇爸',        text:'我自己給香菇的是 95% 動物優蛋白的高端餐'},
+      {who:'鐵粉｜花花媽',  text:'這個我也吃！毛跟便便都明顯穩定🥰'},
+      {who:'新朋友',        text:'香菇爸的高端餐能試試嗎？預算抓多少？'},
+      {who:'絆姐',          text:'(丟賴) 想了解的私訊~ 體驗組這週還有名額❤️'},
+    ]
+  },
+  {day:'三', topic:'你家貓主子最近便便長怎樣？正常嗎？', goal:'切入腸胃話題', convert:'藍藻益生菌',
+    openers: [
+      {who:'群友｜Coco媽',  text:'敏感話題😂 大家家裡主子最近便便都還順嗎？'},
+      {who:'群友｜Luna媽',  text:'今天突然想問一下，你家貓便便長怎樣是正常的？'},
+      {who:'新朋友',        text:'第一次貼，想問貓便便偏軟是不是要顧腸胃啊？'},
+      {who:'群友｜阿樂爸',  text:'最近換季～主子便便有點稀，有人也是嗎'},
+      {who:'群友｜奶茶媽',  text:'奶茶昨天便便我超意外😅 來討論一下吧'},
+    ],
+    responses: [
+      {who:'香菇爸',        text:'其實主子便便是健康指標 ❤️ 觀察形狀和顏色就好'},
+      {who:'香菇爸',        text:'理想是：成形、軟硬適中、顏色深咖啡'},
+      {who:'鐵粉｜花花媽',  text:'我家以前也軟便～後來顧腸胃就改善了'},
+      {who:'群友｜Luna媽',  text:'是飼料的關係嗎？還是壓力？'},
+      {who:'香菇爸',        text:'通常是飼料 / 水量 / 壓力 三個其中一個 😅'},
+      {who:'鐵粉｜花花媽',  text:'換季也會影響喔～我家阿樂以前換季都拉肚子'},
+      {who:'香菇爸',        text:'長期軟便要關心；偶爾一次先觀察就好'},
+      {who:'群友｜阿樂爸',  text:'+1 我都是看一週狀況～'},
+      {who:'群友｜Coco媽',  text:'壓力也會喔？以為只跟飲食有關'},
+      {who:'香菇爸',        text:'貓的腸胃跟情緒超有關係 😂 跟人一樣'},
+    ],
+    converts: [
+      {who:'香菇爸',        text:'我家香菇腸胃比較敏感，後來搭藍藻菌就穩很多'},
+      {who:'鐵粉｜花花媽',  text:'香菇爸的藍藻菌真的是神器❤️ 我家便便超穩'},
+      {who:'群友｜奶茶媽',  text:'我也想試！藍藻菌是日常吃還是有需要才吃？'},
+      {who:'香菇爸',        text:'是日常保養～不是急救。慢慢養底子'},
+      {who:'絆姐',          text:'(丟賴) 想了解藍藻菌的家長私訊~❤️'},
+    ]
+  },
+  {day:'四', topic:'分享一下你家貓的「奇怪偏食」故事', goal:'引共鳴', convert:'-',
+    openers: [
+      {who:'群友｜Luna媽',  text:'今天輕鬆聊：你家貓有什麼奇怪偏食嗎？🤣'},
+      {who:'群友｜Coco媽',  text:'我家 Coco 只吃一個牌子...其他都不碰😭'},
+      {who:'群友｜阿樂爸',  text:'阿樂愛吃小黃瓜邊邊，正常嗎😂'},
+      {who:'群友｜奶茶媽',  text:'奶茶只吃放冷的飼料，剛倒的不吃 哈哈'},
+      {who:'新朋友',        text:'我家主子只吃 A 牌乾的，會挑成這樣怎麼換飼料啊'},
+    ],
+    responses: [
+      {who:'香菇爸',        text:'哈哈哈大家家裡都太可愛 🥰 偏食是真的很常見'},
+      {who:'鐵粉｜花花媽',  text:'我家也是 只吃一個牌子...當初差點換不動'},
+      {who:'香菇爸',        text:'貓本來就比較固執，習慣後很難改 😂'},
+      {who:'群友｜Luna媽',  text:'那要怎麼換飼料才不會被拒絕？'},
+      {who:'香菇爸',        text:'最重要：慢慢換～7-10 天混合過渡，不要硬切'},
+      {who:'鐵粉｜花花媽',  text:'+1 我都先 9:1 混，每三天再調整比例'},
+      {who:'香菇爸',        text:'另外可以撒一點凍乾在新飼料上吸引一下'},
+      {who:'群友｜阿樂爸',  text:'這招我有用！蠻有效的'},
+      {who:'群友｜奶茶媽',  text:'看來是我太急了，剛換時奶茶不吃我就放棄'},
+      {who:'香菇爸',        text:'別急～貓需要時間 ❤️ 慢慢來反而成功'},
+    ],
+    converts: [
+      {who:'鐵粉｜花花媽',  text:'我換到香菇爸高端餐就是慢慢混～兩週成功🥰'},
+      {who:'香菇爸',        text:'其實貓不是真的挑嘴，是「沒換對方法」'},
+      {who:'群友｜Coco媽',  text:'這個觀念好新～我之前都覺得是我家貓的問題'},
+      {who:'香菇爸',        text:'每隻貓不同，但方法對了大部分都能換成功'},
+      {who:'絆姐',          text:'有家長要換飼料的，可以私訊我聊聊細節❤️'},
+    ]
+  },
+  {day:'五', topic:'飼料挑選你最怕踩雷的是什麼？', goal:'切入產品', convert:'高端飼料',
+    openers: [
+      {who:'群友｜Coco媽',  text:'認真討論：選飼料時你最怕看到什麼成分？'},
+      {who:'群友｜Luna媽',  text:'最近一直在比較飼料～眼花了 😩 有什麼挑選原則嗎'},
+      {who:'群友｜阿樂爸',  text:'寵物展回來想換飼料，但不知道怎麼選'},
+      {who:'新朋友',        text:'想學看成分表，請問前 5 名要看什麼？'},
+      {who:'群友｜奶茶媽',  text:'昨天翻了 3 包飼料的成分，越看越焦慮😅'},
+    ],
+    responses: [
+      {who:'香菇爸',        text:'最怕的就是「植物蛋白偽裝成肉」🥲'},
+      {who:'鐵粉｜花花媽',  text:'+1 前面寫雞肉，後面一堆豌豆蛋白...嚇人'},
+      {who:'香菇爸',        text:'看原料表要看「前 5 名」，前 3 名最好都是動物性蛋白'},
+      {who:'群友｜Luna媽',  text:'動物性蛋白佔比要看哪邊？包裝上會寫嗎？'},
+      {who:'香菇爸',        text:'有些會寫「動物性蛋白 X%」～沒寫的就要查官網'},
+      {who:'群友｜阿樂爸',  text:'我自己經驗：碳水超過 15% 的我都跳過'},
+      {who:'香菇爸',        text:'阿樂爸這個觀念超棒 🥰 低碳水對貓真的重要'},
+      {who:'鐵粉｜花花媽',  text:'我家阿樂吃 11% 低碳水後體態超明顯改善'},
+      {who:'群友｜奶茶媽',  text:'天啊 11% 也太低～哪一款啊'},
+      {who:'香菇爸',        text:'我家香菇也是吃 11% 的，香菇爸高端餐 ❤️'},
+    ],
+    converts: [
+      {who:'香菇爸',        text:'95% 動物優蛋白 + 11% 低碳水 + 100% 無穀～這是我選的標準'},
+      {who:'鐵粉｜花花媽',  text:'香菇爸的高端餐真的很到位～香菇爸自己都吃 😂'},
+      {who:'新朋友',        text:'這個高端餐哪邊看詳細介紹？'},
+      {who:'群友｜Coco媽',  text:'菇爸這個還能申請體驗嗎？'},
+      {who:'絆姐',          text:'(丟賴) 高端餐體驗組這週還有名額～想了解的私訊我❤️'},
+    ]
+  },
+  {day:'六', topic:'週末來投票：你家主子吃飼料吃得乾不乾淨？', goal:'軟性互動', convert:'-',
+    openers: [
+      {who:'群友｜Coco媽',  text:'週末來輕鬆投票～你家主子吃完飼料碗會乾淨嗎？🤣'},
+      {who:'群友｜Luna媽',  text:'Luna 吃飼料像撈一樣...碗永遠都有剩😂'},
+      {who:'群友｜阿樂爸',  text:'阿樂直接吃光連碗都會舔，太霸氣'},
+      {who:'群友｜奶茶媽',  text:'奶茶吃飼料超優雅，邊吃邊踱步...'},
+      {who:'新朋友',        text:'這話題太好笑 我家主子吃飯像分屍 飼料噴一地'},
+    ],
+    responses: [
+      {who:'香菇爸',        text:'哈哈哈 你們家都太可愛 🥰'},
+      {who:'香菇爸',        text:'其實「吃光」跟「飼料好不好」也有關係喔'},
+      {who:'群友｜Luna媽',  text:'真的嗎？怎麼判斷？'},
+      {who:'香菇爸',        text:'適口性好的飼料，主子會主動吃完不挑食'},
+      {who:'鐵粉｜花花媽',  text:'我家阿樂以前吃飼料都會留～換餐後變吃光'},
+      {who:'群友｜阿樂爸',  text:'我家也是！換成現在這款之後超捧場'},
+      {who:'香菇爸',        text:'適口性 = 香味 + 顆粒大小 + 含水量'},
+      {who:'群友｜Coco媽',  text:'原來這麼多細節～'},
+      {who:'香菇爸',        text:'好的飼料會在這三點都顧到 ❤️'},
+      {who:'鐵粉｜花花媽',  text:'+1 香菇爸高端餐的顆粒設計就是這樣'},
+    ],
+    converts: [
+      {who:'香菇爸',        text:'我家香菇之前對飼料超挑～換到高端餐就直接掃光'},
+      {who:'鐵粉｜花花媽',  text:'真的！我家阿樂也是 高端餐他可以吃到舔碗'},
+      {who:'群友｜奶茶媽',  text:'這個高端餐...有試吃包嗎😂'},
+      {who:'香菇爸',        text:'有喔～這週還能爭取體驗組'},
+      {who:'絆姐',          text:'(丟賴) 想要體驗組的家長私訊~ 我來幫您❤️'},
+    ]
+  },
+  {day:'日', topic:'下週想看香菇爸聊什麼？留言告訴我', goal:'收集下週主題 + 養粉黏度', convert:'-',
+    openers: [
+      {who:'群友｜Coco媽',  text:'問大家～下週想聽香菇爸聊什麼？'},
+      {who:'群友｜Luna媽',  text:'想看更多香菇減重的故事 🥹'},
+      {who:'群友｜阿樂爸',  text:'希望聽老貓照護～阿樂快 12 歲了'},
+      {who:'新朋友',        text:'想學新手怎麼選第一包飼料'},
+      {who:'群友｜奶茶媽',  text:'想聽多貓家庭怎麼分餵食'},
+    ],
+    responses: [
+      {who:'香菇爸',        text:'大家提的都很好 ❤️ 我這週就在排下週的內容'},
+      {who:'香菇爸',        text:'老貓照護這個我已經在腦中草稿了'},
+      {who:'鐵粉｜花花媽',  text:'多貓家庭超實用！我家三隻每天都打架...'},
+      {who:'群友｜Luna媽',  text:'香菇減重那系列我超愛聽～感覺好真實'},
+      {who:'香菇爸',        text:'你們不知道香菇減重那兩年我多崩潰😂'},
+      {who:'鐵粉｜花花媽',  text:'其實這群裡很多家長都很有經驗，可以互相分享'},
+      {who:'香菇爸',        text:'對 ❤️ 群裡也是一個學習空間，不是只有我講'},
+      {who:'群友｜Coco媽',  text:'下次直播會講減重嗎？想預約'},
+      {who:'香菇爸',        text:'下下週我會排一場 ❤️ 到時候在這邊預告'},
+      {who:'群友｜阿樂爸',  text:'+1 期待'},
+    ],
+    converts: [
+      {who:'香菇爸',        text:'這週感謝大家陪香菇爸跑～❤️ 下週見'},
+      {who:'香菇爸',        text:'有用過藍藻菌或高端餐的家長，歡迎私訊跟我聊心得'},
+      {who:'鐵粉｜花花媽',  text:'我也想看大家分享～有用過的可以留言一下嗎😂'},
+      {who:'群友｜奶茶媽',  text:'我家奶茶吃藍藻菌一個月～毛變超滑'},
+      {who:'絆姐',          text:'有想試體驗組的，這週還能私訊我登記❤️'},
+    ]
+  },
+];
+
+// 本週 IG 限動（每日 7 篇）
+const igStories = {
+  '一': [
+    {type:'問句',  text:'你家貓主子今天上廁所了嗎？投票 ⤵ 有 / 沒有'},
+    {type:'香菇日常', text:'(香菇在窗邊照片) 早安啊，今天天氣涼涼的'},
+    {type:'冷知識', text:'你知道嗎？貓咪的鬍鬚是用來測量縫隙寬度的'},
+    {type:'問卷',  text:'你家主子最愛的玩具是？(選項：逗貓棒/紙箱/毛球/塑膠袋)'},
+    {type:'幕後',  text:'今天拍了一支關於英短保命法則的影片，明天上'},
+    {type:'痛點',  text:'你家貓吃飯時會把碗踢翻嗎？我香菇以前都這樣 😅'},
+    {type:'CTA',   text:'明天上新片！記得追蹤 + 開小鈴鐺 💜'},
+  ],
+  '二': [
+    {type:'問句',  text:'你今天有對主子說早安嗎？'},
+    {type:'香菇日常', text:'(香菇睡照) 中午的太陽剛剛好，誰能不睡？'},
+    {type:'分享',  text:'最近發現一個養貓神器，明後天分享'},
+    {type:'反問',  text:'有人跟我一樣，下班第一件事就是先找貓嗎？'},
+    {type:'貓咪知識', text:'貓咪的睡眠時間是人類的 2 倍，所以別擔心牠睡太多'},
+    {type:'產品鋪墊', text:'我幫香菇換到 11% 低碳水飼料後，氣色真的差好多'},
+    {type:'CTA',   text:'明天會分享一個影片，是關於我家香菇減重的故事'},
+  ],
+  '三': [
+    {type:'今日影片',text:'⚡ 新片上了！英短肥肥的 3 大保命法則 → 點上面看'},
+    {type:'問句',  text:'你的英短超過 5 公斤了嗎？投票'},
+    {type:'香菇日常',text:'(香菇全身照) 看看現在 4.3 公斤的香菇 ❤️'},
+    {type:'共鳴',  text:'肥胖貓咪的家長辛苦了，這真的不是你的錯'},
+    {type:'資訊',  text:'貓咪理想體重公式：體型大小 × 4-5 公斤'},
+    {type:'導留言', text:'看完影片留言【長壽】我發《飼料成分地雷懶人包》'},
+    {type:'CTA',   text:'已經有 30+ 家長留言了！還沒留的快來 💜'},
+  ],
+  '四': [
+    {type:'感謝',  text:'昨天有 100+ 家長領了懶人包，謝謝你們 🥰'},
+    {type:'香菇日常',text:'(香菇打呵欠) 今天的香菇有點懶'},
+    {type:'故事',  text:'有粉絲問我：減重期間香菇是不是很可憐？真相分享中'},
+    {type:'反差',  text:'其實香菇減重後，反而吃得更開心了，因為吃得對'},
+    {type:'冷知識',text:'貓咪一天的水量大約是體重的 5%，你算過嗎？'},
+    {type:'產品',  text:'有人問我藍藻益生菌怎麼吃，明天詳細說'},
+    {type:'CTA',   text:'有疑問的家長私訊我 💜'},
+  ],
+  '五': [
+    {type:'今日影片',text:'⚡ 新片上了！99% 的人選飼料都看錯這 3 個地方 → 點上面看'},
+    {type:'問句',  text:'你選飼料第一眼在看什麼？投票'},
+    {type:'香菇日常',text:'(香菇吃飯) 主子用餐中，請勿打擾'},
+    {type:'資訊',  text:'飼料原料表的順序，前 5 名就決定了 80% 的營養來源'},
+    {type:'導留言',text:'留言【飼料】領完整《飼料成分地雷懶人包》'},
+    {type:'共鳴', text:'選飼料的焦慮我懂，我自己當初也搞不清楚'},
+    {type:'CTA',  text:'週末快樂！記得幫主子準備乾淨的水 💜'},
+  ],
+  '六': [
+    {type:'問句', text:'週末來問：你家主子有自己的小週末儀式嗎？'},
+    {type:'香菇日常',text:'(香菇玩玩具) 週末就是要陪主子玩'},
+    {type:'分享', text:'今天整理了一些粉絲的留言，超溫暖 ❤️'},
+    {type:'投票', text:'你家主子最愛的位置：床/沙發/窗台/紙箱'},
+    {type:'冷知識', text:'貓咪用呼嚕聲療癒自己，頻率正好是骨骼修復的範圍'},
+    {type:'產品', text:'藍藻益生菌的限時組合明天上，記得追蹤'},
+    {type:'CTA', text:'晚安啦各位家長，主子也該睡了 💜'},
+  ],
+  '日': [
+    {type:'週末總結', text:'這週分享了很多，謝謝陪香菇爸走過這一週 🥰'},
+    {type:'香菇日常', text:'(香菇睡照) 主子的週日也是這樣度過'},
+    {type:'產品優惠', text:'藍藻益生菌 + 高端餐飼料 組合優惠，限今天'},
+    {type:'反問',     text:'下週想看什麼話題？留言告訴我'},
+    {type:'感謝',     text:'這週有 200+ 家長留言領懶人包，超感動'},
+    {type:'下週預告', text:'下週會講「布偶貓底盤保養」+「老貓陪伴」'},
+    {type:'CTA',      text:'晚安啦，新的一週充滿能量 💗 記得追蹤'},
+  ],
+};
+
+// ============ RENDER ============
+function renderVideos() {
+  const html = videos.map(v => `
+    <details class="border border-stone-200 rounded-lg card-hover">
+      <summary class="px-4 py-3 flex items-center justify-between">
+        <div>
+          <div class="flex items-center gap-2 text-xs font-bold mb-1">
+            <span class="bg-orange-100 text-orange-700 px-2 py-0.5 rounded">週${v.day}</span>
+            <span class="${v.mode==='B'?'bg-rose-100 text-rose-700':'bg-blue-100 text-blue-700'} px-2 py-0.5 rounded">Mode ${v.mode}</span>
+          </div>
+          <div class="font-bold text-sm">${v.title}</div>
+        </div>
+        <span class="chevron text-stone-400">▼</span>
+      </summary>
+      <div class="px-4 pb-4 text-sm text-stone-700 border-t border-stone-100 pt-3 space-y-2">
+        <div class="bg-amber-50 border-l-4 border-amber-400 px-3 py-2 text-xs">
+          <strong>Hook：</strong>${v.hook}
+        </div>
+        <div class="space-y-1.5">
+          ${v.structure.map(s => `
+            <div class="flex gap-2">
+              <span class="text-xs font-bold text-orange-600 w-12 shrink-0">${s.sec}</span>
+              <span class="text-xs leading-relaxed">${s.text}</span>
+            </div>
+          `).join('')}
+        </div>
+        <div class="text-xs bg-stone-50 px-3 py-2 rounded">
+          <div><strong>CTA：</strong>${v.cta}</div>
+          <div class="mt-1 text-stone-600"><strong>轉化目標：</strong>${v.convert}</div>
+        </div>
+      </div>
+    </details>
+  `).join('');
+  document.getElementById('video-list').innerHTML = html;
+}
+
+function speakerIcon(who) {
+  if (who.includes('香菇爸')) return '👨‍⚕️';
+  if (who.includes('鐵粉') || who.includes('花花媽')) return '⭐';
+  if (who.includes('絆姐')) return '💜';
+  return '🐾';
+}
+function speakerColor(who) {
+  if (who.includes('香菇爸')) return 'bg-orange-50 border-l-orange-400';
+  if (who.includes('鐵粉') || who.includes('花花媽')) return 'bg-amber-50 border-l-amber-400';
+  if (who.includes('絆姐')) return 'bg-purple-50 border-l-purple-400';
+  return 'bg-stone-50 border-l-stone-300';
+}
+function renderDialogBlock(title, badge, items) {
+  return `
+    <div class="mt-2">
+      <div class="flex items-center gap-2 mb-1.5">
+        <span class="text-xs font-bold text-stone-700">${title}</span>
+        <span class="text-[10px] bg-stone-100 text-stone-600 px-1.5 py-0.5 rounded">${items.length} 句</span>
+        ${badge ? `<span class="text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold">${badge}</span>` : ''}
+      </div>
+      <div class="space-y-1">
+        ${items.map((d, i) => `
+          <div class="${speakerColor(d.who)} border-l-2 px-2 py-1.5 rounded text-xs leading-relaxed">
+            <div class="flex items-center gap-1 text-[10px] text-stone-500 mb-0.5">
+              <span>${speakerIcon(d.who)}</span><span class="font-bold">${d.who}</span>
+              <span class="ml-auto text-stone-300">#${i+1}</span>
+            </div>
+            <div class="text-stone-800">${d.text}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+function renderCommunity() {
+  const html = community.map(c => `
+    <details class="border border-stone-200 rounded-lg card-hover">
+      <summary class="px-3 py-2.5">
+        <div class="flex items-center justify-between mb-1">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded">週${c.day}</span>
+            <span class="text-[10px] bg-stone-100 text-stone-500 px-1.5 rounded">5+10+5</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-stone-500">${c.convert === '-' ? '養粉' : '→ '+c.convert}</span>
+            <span class="chevron text-stone-400 text-xs">▼</span>
+          </div>
+        </div>
+        <div class="font-bold text-sm">${c.topic}</div>
+        <div class="text-xs text-stone-500 mt-0.5">目的：${c.goal}</div>
+      </summary>
+      <div class="px-3 pb-3 border-t border-stone-100 pt-2">
+        ${renderDialogBlock('🟢 開場（你 / 鐵粉發起）', null, c.openers)}
+        ${renderDialogBlock('🟡 接話（你 + 鐵粉接力）', null, c.responses)}
+        ${renderDialogBlock('🔴 轉化（自然導入）', c.convert === '-' ? null : c.convert, c.converts)}
+      </div>
+    </details>
+  `).join('');
+  document.getElementById('community-list').innerHTML = html;
+}
+
+function renderStories() {
+  const html = Object.entries(igStories).map(([day, stories]) => `
+    <details class="border border-stone-200 rounded-lg card-hover">
+      <summary class="px-3 py-2 flex items-center justify-between">
+        <span class="text-sm font-bold">週${day} · 7 篇</span>
+        <span class="chevron text-stone-400">▼</span>
+      </summary>
+      <div class="px-3 pb-3 text-xs space-y-1.5 border-t border-stone-100 pt-2">
+        ${stories.map((s, i) => `
+          <div class="flex gap-2 ig-story">
+            <span class="font-bold text-stone-400 w-5 shrink-0">${i+1}.</span>
+            <div>
+              <span class="inline-block bg-stone-100 text-stone-600 px-1.5 rounded text-[10px] mr-1">${s.type}</span>
+              ${s.text}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </details>
+  `).join('');
+  document.getElementById('story-list').innerHTML = html;
+}
+
+function copyToLine() {
+  let text = `🍄 香菇爸 × 本週行程 (${document.getElementById('week-range').textContent})\n`;
+  text += '━━━━━━━━━━━━━━━\n\n';
+
+  text += '📺 本週公域短影音 (3 支)\n';
+  videos.forEach(v => {
+    text += `\n【週${v.day}・Mode ${v.mode}】${v.title}\n  Hook: ${v.hook}\n  CTA: ${v.cta}\n`;
+  });
+
+  text += '\n━━━━━━━━━━━━━━━\n\n💬 本週私域社群話題\n';
+  community.forEach(c => {
+    text += `週${c.day}: ${c.topic} (${c.convert==='-'?'養粉':'→'+c.convert})\n`;
+  });
+
+  text += '\n━━━━━━━━━━━━━━━\n\n📱 IG 限動 · 每日 7 篇\n(完整內容請點網址查看)';
+
+  navigator.clipboard.writeText(text).then(() => {
+    alert('✅ 已複製！可直接貼到 LINE 群組');
+  });
+}
+
+renderVideos();
+renderCommunity();
+renderStories();
+
+// ============ 設定 / API 整合 ============
+const STORAGE_KEY = 'xiang_gu_ba_settings';
+
+function loadSettings() {
+  const s = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  return { apiKey: s.apiKey || '', model: s.model || 'claude-sonnet-4-6' };
+}
+function refreshStatus() {
+  const s = loadSettings();
+  const el = document.getElementById('api-status');
+  if (s.apiKey) {
+    el.innerHTML = `<span class="text-green-600">●</span> API 已連線 · ${s.model.split('-').slice(0,3).join(' ')}`;
+  } else {
+    el.innerHTML = `<span class="text-stone-400">●</span> 尚未設定 API`;
+  }
+}
+function openSettings() {
+  const s = loadSettings();
+  document.getElementById('api-key-input').value = s.apiKey;
+  document.getElementById('model-select').value = s.model;
+  document.getElementById('settings-modal').classList.remove('hidden');
+  document.getElementById('settings-modal').classList.add('flex');
+}
+function closeSettings() {
+  document.getElementById('settings-modal').classList.add('hidden');
+  document.getElementById('settings-modal').classList.remove('flex');
+}
+function saveSettings() {
+  const apiKey = document.getElementById('api-key-input').value.trim();
+  const model = document.getElementById('model-select').value;
+  if (apiKey && !apiKey.startsWith('sk-ant-')) {
+    alert('⚠️ Claude API 金鑰應該以 sk-ant- 開頭');
+    return;
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ apiKey, model }));
+  refreshStatus();
+  closeSettings();
+}
+refreshStatus();
+
+// ============ Claude API 呼叫 ============
+const SYSTEM_PROMPT = `你是綸綸老師(香菇爸)的專屬 AI 內容助理。綸綸老師經營台灣寵物品牌「金牌鏟屎官」,有兩大產品線(藍藻益生菌、高端餐飼料),IG 主帳號 @love_mushroom55(1.3 萬粉)。
+
+你的任務:為她生成一週完整內容計畫,**完全套用她的 DNA**,不可偏離。
+
+## 🎭 香菇爸人設(必須鎖死)
+- 我是養貓的特寵認證創作者,曼赤肯 7 歲女生「香菇」的爸爸
+- 粉絲叫我「香菇爸」,受眾是 20-50 歲養貓鏟屎官(尤其品種貓家庭、新手貓奴)
+- 風格:幽默 · 親切 · 專業 · 輕鬆 — 像 LINE 回訊息,不是上課
+- 用詞: **絕對不可用「飼主」, 一律用「毛家長」**
+- emoji 限定: 🥰😅😂💗💜💙❤️🥹🥲
+
+## 📺 短影音腳本 DNA (Mode A / Mode B)
+
+**Mode A(慢、情緒、醫療型):** 健康警示、情緒共鳴、價值觀。Hook 是「斷言式 + 破折號」。每句一行,空行讓呼吸。反結論收尾 + 自我踩煞車。CTA:純陪伴型(留個「有」就好)。
+
+**Mode B(快狠準、教學型):** 冷知識、品種介紹、飼料挑選、行為解讀。Hook 是「問句 / 妳敢信嗎」。3 個點結構(三大禁忌/法則/地雷)。真實香菇案例 + 具體數據。CTA:任務型 + 懶人包(「留言【關鍵字】」)。結尾常加「養貓看香菇爸頻道就對了」。
+
+**結構必含:** 0-3s 痛點/驚訝 → 4-15s 延伸 → 16-30s 解方(Mode B 列點) → 30-45s 共鳴 → 45-60s 收尾
+
+**醫療類強制規則:** 不下結論、不給診斷、不說「一定要」、用「我不能幫你判斷 / 跟你的獸醫討論」、Mode A 慢鉤子 + 反結論收尾。
+
+## 💬 私域社群 13 步操盤(LINE 群組)
+**角色固定:** 👨‍⚕️ 香菇爸 / 🐾 鐵粉花花媽 / 🐾 阿樂爸 / 🐾 群友(Coco媽/Luna媽/奶茶媽) / 🐾 絆姐(丟賴角色) / 新朋友
+
+**流程:** 群友開場(5 句生活情境) → 群友共鳴/鐵粉附和(10 句) → 香菇爸專業補充(用「香菇」當見證) → 鐵粉社證 → 新朋友詢問 → 絆姐丟賴 → 新朋友「我想試試看」
+
+**轉化路徑:**
+- 便便/腸胃/換季/毛況 → **藍藻益生菌**(「日常保養~不是急救」)
+- 飼料/體重/適口性/偏食 → **高端餐飼料**(「95% 動物優蛋白 + 11% 低碳水」)
+
+**禁忌:** 香菇爸第一句不能推產品(要先 5-10 句鋪墊)、不要「限時/折扣/搶購」、用「體驗組額度滿,我去爭取」當稀缺性
+
+## 📱 IG 限動 7+1 系統
+**每天 7 篇 = 完整銷售節奏(順位不能亂):**
+1-2 訂單展示 + 互動提問
+3 香菇日常(保留神秘感)
+4-5 恐懼痛點(反向操作,「沒有 X 會怎樣」)
+6-7 價值觀念(用結果說話,不報品名)
+**(每週 3 次)** 第 8 篇:成交轉換(體驗組稀缺/曬單,**不報價**)
+
+**內容類型:** type 必須是這幾種之一:訂單/投票/香菇日常/恐懼痛點/知識縫隙/價值觀念/共鳴/今日影片/CTA/感謝/產品鋪墊
+
+## ⚠️ 共同語氣準則
+- ❌ 不要每句像舞台劇(過度誇張、滿滿驚嘆號)
+- ❌ 不要每句都很長
+- ✅ 像朋友 LINE 閒聊,情緒有層次,適度留白
+- ✅ emoji 一段 1-2 個
+
+## 📦 輸出格式 (必須是純 JSON,不要有任何解釋或 markdown)
+
+\`\`\`json
+{
+  "week_range": "5/27 (一) – 6/2 (日)",
+  "theme_summary": "本週主推方向一句話",
+  "videos": [
+    {
+      "day": "一",
+      "mode": "B",
+      "title": "...(吸睛標題)",
+      "hook": "...(0-3 秒抓人句)",
+      "structure": [
+        {"sec": "0-3s", "text": "..."},
+        {"sec": "4-15s", "text": "..."},
+        {"sec": "16-30s", "text": "..."},
+        {"sec": "30-45s", "text": "..."},
+        {"sec": "45-60s", "text": "..."}
+      ],
+      "cta": "🔵 任務型 · 留言【關鍵字】→ 配《懶人包名》",
+      "convert": "藍藻益生菌 / 高端餐飼料 / 無(信任建立)"
+    }
+    // 共 3 支,週一/週三/週五,Mode A B 混合
+  ],
+  "community": [
+    {
+      "day": "一",
+      "topic": "...(一句話話題)",
+      "goal": "...",
+      "convert": "藍藻益生菌 / 高端餐飼料 / -",
+      "openers": [
+        {"who": "群友｜Coco媽", "text": "..."}
+      ], // 5 句
+      "responses": [
+        {"who": "香菇爸", "text": "..."}
+      ], // 10 句
+      "converts": [
+        {"who": "絆姐", "text": "(丟賴)..."}
+      ] // 5 句
+    }
+    // 共 7 天
+  ],
+  "ig_stories": {
+    "一": [
+      {"type": "訂單", "text": "..."},
+      {"type": "投票", "text": "..."},
+      {"type": "香菇日常", "text": "..."},
+      {"type": "恐懼痛點", "text": "..."},
+      {"type": "知識縫隙", "text": "..."},
+      {"type": "價值觀念", "text": "..."},
+      {"type": "CTA", "text": "..."}
+    ]
+    // 共 7 天 x 7 篇
+  }
+}
+\`\`\`
+
+**只輸出 JSON, 不要加任何 markdown 標記、解釋、前後文。直接 { 開頭, } 結尾。**`;
+
+function nextMondayLabel() {
+  const today = new Date();
+  const dow = today.getDay();
+  const offset = dow === 0 ? 1 : (8 - dow);
+  const monday = new Date(today.getTime() + offset * 86400000);
+  const sunday = new Date(monday.getTime() + 6 * 86400000);
+  const f = (d) => `${d.getMonth()+1}/${d.getDate()}`;
+  return `${f(monday)} (一) – ${f(sunday)} (日)`;
+}
+
+async function generateWeek() {
+  const s = loadSettings();
+  if (!s.apiKey) {
+    alert('⚠️ 請先到「⚙️ 設定」貼上你的 Claude API 金鑰');
+    openSettings();
+    return;
+  }
+
+  const seed = document.getElementById('seed-input').value.trim();
+  const userPrompt = `請為我生成下週(${nextMondayLabel()})的完整內容計畫。
+
+${seed ? `**本週方向:** ${seed}\n\n` : ''}基本要求:
+- 3 支公域短影音(週一週三週五,Mode A/B 混合)
+- 7 天私域社群每日話題(每日 5+10+5 = 20 對話腳本)
+- 7 天 × 7 篇 IG 限動(共 49 篇)
+
+直接輸出 JSON,不要其他文字。`;
+
+  document.getElementById('loading-modal').classList.remove('hidden');
+  document.getElementById('loading-modal').classList.add('flex');
+  document.getElementById('gen-btn').disabled = true;
+
+  const loadingMsgs = [
+    '套用 14 個社群模組 + IG 7+1 + 私域 13 步...',
+    '生成週一週三週五的短影音腳本...',
+    '排私域社群 7 天 × 20 對話腳本...',
+    '排 IG 限動 49 篇,確認 7+1 順位...',
+    '校對 emoji 與用詞(毛家長/香菇)...',
+  ];
+  let msgIdx = 0;
+  const msgInterval = setInterval(() => {
+    msgIdx = (msgIdx + 1) % loadingMsgs.length;
+    document.getElementById('loading-text').textContent = loadingMsgs[msgIdx];
+  }, 6000);
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': s.apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: s.model,
+        max_tokens: 32000,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: userPrompt }],
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`API 錯誤 ${response.status}: ${errText.slice(0, 200)}`);
+    }
+
+    const data = await response.json();
+    const text = data.content[0].text.trim();
+    console.log('Claude 原始回應:', text);
+
+    // 強化版 JSON 解析:
+    // 1. 移除 markdown 程式碼包裝
+    // 2. 找第一個 { 到最後一個 }
+    // 3. 嘗試 parse,失敗就顯示原文除錯
+    let jsonText = text;
+
+    // 移除 ```json 開頭 / ``` 結尾(支援不完整)
+    jsonText = jsonText.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?\s*```\s*$/, '');
+
+    // 找第一個 { 和最後一個 }
+    const startIdx = jsonText.indexOf('{');
+    const endIdx = jsonText.lastIndexOf('}');
+    if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+      jsonText = jsonText.substring(startIdx, endIdx + 1);
+    }
+
+    let plan;
+    try {
+      plan = JSON.parse(jsonText);
+    } catch (parseErr) {
+      console.error('解析失敗的文字:', jsonText.slice(0, 500));
+      // 第二次嘗試:可能 JSON 被截斷了,試著補上缺的閉合
+      throw new Error(`JSON 解析失敗:${parseErr.message}\n原始開頭:${text.slice(0, 100)}...`);
+    }
+
+    // 更新 UI
+    if (plan.week_range) document.getElementById('week-range').textContent = plan.week_range;
+    if (plan.videos)     { videos.length = 0; videos.push(...plan.videos); renderVideos(); }
+    if (plan.community)  { community.length = 0; community.push(...plan.community); renderCommunity(); }
+    if (plan.ig_stories) { Object.keys(igStories).forEach(k => delete igStories[k]); Object.assign(igStories, plan.ig_stories); renderStories(); }
+
+    // 儲存到 localStorage (下次開瀏覽器還在)
+    localStorage.setItem('xiang_gu_ba_lastPlan', JSON.stringify(plan));
+
+    document.getElementById('loading-text').innerHTML = '✅ 完成!向下捲動看本週計畫';
+    setTimeout(() => {
+      document.getElementById('loading-modal').classList.add('hidden');
+      document.getElementById('loading-modal').classList.remove('flex');
+    }, 1500);
+
+  } catch (err) {
+    console.error(err);
+    document.getElementById('loading-text').innerHTML = `❌ 失敗: ${err.message}<br><br><button onclick="document.getElementById('loading-modal').classList.add('hidden')" class="bg-orange-500 text-white px-4 py-2 rounded-lg text-sm">關閉</button>`;
+  } finally {
+    clearInterval(msgInterval);
+    document.getElementById('gen-btn').disabled = false;
+  }
+}
+
+// 還原上次的計畫(如果有)
+const lastPlan = localStorage.getItem('xiang_gu_ba_lastPlan');
+if (lastPlan) {
+  try {
+    const plan = JSON.parse(lastPlan);
+    if (plan.week_range) document.getElementById('week-range').textContent = plan.week_range;
+    if (plan.videos)     { videos.length = 0; videos.push(...plan.videos); renderVideos(); }
+    if (plan.community)  { community.length = 0; community.push(...plan.community); renderCommunity(); }
+    if (plan.ig_stories) { Object.keys(igStories).forEach(k => delete igStories[k]); Object.assign(igStories, plan.ig_stories); renderStories(); }
+  } catch (e) { console.warn('上次計畫還原失敗', e); }
+}
+</script>
+</body>
+</html>
