@@ -107,6 +107,11 @@
             class="bg-stone-800 hover:bg-black text-white font-bold px-4 py-2 rounded-full shadow text-sm transition disabled:opacity-50">
       🔄 全部一起生 <span class="text-xs opacity-80">~2-4min</span>
     </button>
+    <span class="text-stone-300 mx-1">|</span>
+    <button onclick="openAnalyze()" id="btn-analyze"
+            class="bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-2 rounded-full shadow text-sm transition disabled:opacity-50">
+      📊 拆解爆款腳本 <span class="text-xs opacity-80">~30s</span>
+    </button>
     <div id="api-status" class="text-xs text-stone-500 ml-auto"></div>
   </div>
 </section>
@@ -156,6 +161,53 @@
     <div class="flex gap-2 mt-3">
       <button onclick="submitRefine()" id="refine-submit-btn" class="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 rounded-lg disabled:opacity-50">🔄 重寫</button>
       <button onclick="closeRefine()" class="flex-1 bg-stone-200 hover:bg-stone-300 font-bold py-2.5 rounded-lg">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- 📊 爆款拆解彈窗 -->
+<div id="analyze-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center px-4 overflow-y-auto py-8">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 my-auto">
+    <!-- 輸入畫面 -->
+    <div id="analyze-input-view">
+      <h3 class="text-lg font-black mb-1">📊 爆款腳本拆解工具</h3>
+      <p class="text-xs text-stone-500 mb-3">貼任何爆款短影音腳本 → AI 拆解結構 + 改寫成香菇爸版本</p>
+
+      <label class="block text-sm font-bold mb-1">🔥 爆款腳本內容</label>
+      <textarea id="analyze-script" rows="8" placeholder="貼上完整腳本（中文/英文都可以）。例如：&#10;「妳家貓最近便便長怎樣？很多人不知道...」"
+                class="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400"></textarea>
+
+      <label class="block text-sm font-bold mb-1 mt-4">💭 為什麼覺得它爆？（選填）</label>
+      <input id="analyze-context" placeholder="例：抖音熱門、留言 500+、演算法狂推、品牌花了 50 萬"
+             class="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400">
+
+      <div class="text-xs text-stone-500 mt-3 bg-purple-50 p-3 rounded-lg">
+        <strong>AI 會分析給你：</strong>
+        <ul class="mt-1 ml-4 list-disc space-y-0.5">
+          <li>Hook 強度評分（1-10）+ 為什麼有效</li>
+          <li>結構拆解（0-3s/4-15s/...）</li>
+          <li>Mode A/B 判定</li>
+          <li>為什麼會爆 + 它的弱點</li>
+          <li><strong>「香菇爸版」完整改寫</strong>(可直接用)</li>
+        </ul>
+      </div>
+
+      <div class="flex gap-2 mt-4">
+        <button onclick="submitAnalyze()" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 rounded-lg">🔍 開始拆解</button>
+        <button onclick="closeAnalyze()" class="flex-1 bg-stone-200 hover:bg-stone-300 font-bold py-2.5 rounded-lg">取消</button>
+      </div>
+    </div>
+
+    <!-- 結果畫面 -->
+    <div id="analyze-result-view" class="hidden">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-black">📊 拆解結果</h3>
+        <div class="flex gap-2">
+          <button onclick="resetAnalyze()" class="bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold px-3 py-1.5 rounded-full">🔄 拆解下一支</button>
+          <button onclick="closeAnalyze()" class="bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold px-3 py-1.5 rounded-full">✕ 關閉</button>
+        </div>
+      </div>
+      <div id="analyze-result-content"></div>
     </div>
   </div>
 </div>
@@ -864,6 +916,246 @@ ${instruction}
   } finally {
     document.getElementById('refine-submit-btn').disabled = false;
   }
+}
+
+// ============ 📊 爆款拆解工具 ============
+function openAnalyze() {
+  document.getElementById('analyze-input-view').classList.remove('hidden');
+  document.getElementById('analyze-result-view').classList.add('hidden');
+  document.getElementById('analyze-modal').classList.remove('hidden');
+  document.getElementById('analyze-modal').classList.add('flex');
+}
+function closeAnalyze() {
+  document.getElementById('analyze-modal').classList.add('hidden');
+  document.getElementById('analyze-modal').classList.remove('flex');
+}
+function resetAnalyze() {
+  document.getElementById('analyze-input-view').classList.remove('hidden');
+  document.getElementById('analyze-result-view').classList.add('hidden');
+  document.getElementById('analyze-script').value = '';
+  document.getElementById('analyze-context').value = '';
+}
+
+async function submitAnalyze() {
+  const script = document.getElementById('analyze-script').value.trim();
+  const context = document.getElementById('analyze-context').value.trim();
+  if (!script) { alert('請貼上要拆解的腳本'); return; }
+
+  const s = loadSettings();
+  if (!s.apiKey) { alert('⚠️ 請先到「⚙️ 設定」貼上 API 金鑰'); return; }
+
+  const userPrompt = `下面是一支爆款短影音的腳本，請你以「香菇爸 DNA 標準」幫我做兩件事：
+
+【原始腳本】
+${script}
+
+${context ? `【為什麼覺得它爆】\n${context}\n\n` : ''}**任務 1：拆解分析**
+- Hook 強度（1-10 分）+ 為什麼
+- 結構（0-3s/4-15s/16-30s/30-45s/45-60s 對應內容）
+- 原始 Mode 判定（A 慢情緒 / B 快狠準）
+- 為什麼會爆（3 個關鍵原因）
+- 它的弱點（如果套到我們頻道哪裡需要改）
+
+**任務 2：改寫成香菇爸版本**
+完整套用香菇爸 DNA（人設/語氣/Mode/CTA/emoji），改寫成一支可以直接拍的影片。
+產品只能用「藍藻益生菌」或「高端餐飼料」，或不推產品（信任建立型）。
+
+**輸出純 JSON：**
+\`\`\`
+{
+  "analysis": {
+    "hook_strength": 8,
+    "hook_reason": "...",
+    "structure": [
+      {"sec": "0-3s", "summary": "..."},
+      {"sec": "4-15s", "summary": "..."},
+      {"sec": "16-30s", "summary": "..."},
+      {"sec": "30-45s", "summary": "..."},
+      {"sec": "45-60s", "summary": "..."}
+    ],
+    "original_mode": "B",
+    "why_viral": ["原因 1", "原因 2", "原因 3"],
+    "weaknesses": ["弱點 1", "弱點 2"]
+  },
+  "rewrite": {
+    "slot": "主推",
+    "type": "行為",
+    "mode": "B",
+    "title": "...",
+    "hook": "...",
+    "structure": [
+      {"sec":"0-3s","text":"..."},
+      {"sec":"4-15s","text":"..."},
+      {"sec":"16-30s","text":"..."},
+      {"sec":"30-45s","text":"..."},
+      {"sec":"45-60s","text":"..."}
+    ],
+    "cta": "...",
+    "convert": "藍藻益生菌"
+  }
+}
+\`\`\`
+⚠️ 純 JSON，不要 markdown 不要 // 註解`;
+
+  // Loading
+  document.getElementById('loading-modal').classList.remove('hidden');
+  document.getElementById('loading-modal').classList.add('flex');
+  document.getElementById('loading-text').textContent = 'AI 正在拆解爆款結構...';
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': s.apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: s.model,
+        max_tokens: 8000,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: userPrompt }],
+      }),
+    });
+
+    if (!response.ok) { const e = await response.text(); throw new Error(`API ${response.status}: ${e.slice(0,200)}`); }
+
+    const data = await response.json();
+    let text = data.content[0].text.trim();
+    text = text.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?\s*```\s*$/, '');
+    const startIdx = text.indexOf('{');
+    const endIdx = text.lastIndexOf('}');
+    if (startIdx !== -1 && endIdx !== -1) text = text.substring(startIdx, endIdx + 1);
+    text = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"])\/\/[^\n\r]*/g, '$1').replace(/,(\s*[}\]])/g, '$1');
+    const result = JSON.parse(text);
+
+    showAnalysisResult(result);
+
+    document.getElementById('loading-modal').classList.add('hidden');
+    document.getElementById('loading-modal').classList.remove('flex');
+  } catch (err) {
+    console.error(err);
+    document.getElementById('loading-text').innerHTML = `❌ 失敗: ${err.message}<br><br><button onclick="document.getElementById('loading-modal').classList.add('hidden')" class="bg-orange-500 text-white px-4 py-2 rounded-lg text-sm">關閉</button>`;
+  }
+}
+
+function showAnalysisResult(result) {
+  const a = result.analysis;
+  const r = result.rewrite;
+
+  // Hook 強度顯示
+  const hookBars = '█'.repeat(a.hook_strength) + '░'.repeat(10 - a.hook_strength);
+  const hookColor = a.hook_strength >= 8 ? 'text-green-600' : a.hook_strength >= 5 ? 'text-orange-500' : 'text-red-500';
+
+  const html = `
+    <!-- 分析區 -->
+    <div class="bg-purple-50 rounded-xl p-4 mb-4 border-2 border-purple-200">
+      <h4 class="font-black text-purple-900 mb-3">🔍 原版拆解</h4>
+
+      <div class="mb-3">
+        <div class="text-xs font-bold text-stone-700 mb-1">Hook 強度</div>
+        <div class="flex items-center gap-2">
+          <span class="font-mono ${hookColor} font-bold">${hookBars}</span>
+          <span class="font-bold ${hookColor}">${a.hook_strength}/10</span>
+        </div>
+        <div class="text-xs text-stone-600 mt-1">${a.hook_reason}</div>
+      </div>
+
+      <div class="mb-3">
+        <div class="text-xs font-bold text-stone-700 mb-1">結構拆解</div>
+        <div class="space-y-1">
+          ${a.structure.map(s => `
+            <div class="flex gap-2 text-xs">
+              <span class="font-bold text-orange-600 w-12 shrink-0">${s.sec}</span>
+              <span class="text-stone-700">${s.summary}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
+        <div>
+          <div class="text-xs font-bold text-green-700 mb-1">✅ 為什麼會爆</div>
+          <ul class="text-xs text-stone-700 list-disc ml-4 space-y-0.5">
+            ${a.why_viral.map(w => `<li>${w}</li>`).join('')}
+          </ul>
+        </div>
+        <div>
+          <div class="text-xs font-bold text-red-700 mb-1">⚠️ 弱點 / 套到香菇爸要改</div>
+          <ul class="text-xs text-stone-700 list-disc ml-4 space-y-0.5">
+            ${a.weaknesses.map(w => `<li>${w}</li>`).join('')}
+          </ul>
+        </div>
+      </div>
+
+      <div class="text-xs text-stone-500 mt-2">原版 Mode 判定：<strong>Mode ${a.original_mode}</strong></div>
+    </div>
+
+    <!-- 改寫區 -->
+    <div class="bg-orange-50 rounded-xl p-4 border-2 border-orange-300">
+      <h4 class="font-black text-orange-900 mb-3">🍄 香菇爸版改寫</h4>
+
+      <div class="flex flex-wrap gap-1.5 text-xs font-bold mb-2">
+        <span class="${r.slot==='主推'?'bg-red-500 text-white':'bg-stone-400 text-white'} px-2 py-0.5 rounded">${r.slot}</span>
+        <span class="${typeColor(r.type)} px-2 py-0.5 rounded">${r.type}</span>
+        <span class="${r.mode==='B'?'bg-rose-100 text-rose-700':'bg-blue-100 text-blue-700'} px-2 py-0.5 rounded">Mode ${r.mode}</span>
+      </div>
+
+      <div class="font-bold text-sm mb-2">${r.title}</div>
+
+      <div class="bg-amber-50 border-l-4 border-amber-400 px-3 py-2 text-xs mb-2">
+        <strong>Hook：</strong>${r.hook}
+      </div>
+
+      <div class="space-y-1 mb-2">
+        ${r.structure.map(s => `
+          <div class="flex gap-2 text-xs">
+            <span class="font-bold text-orange-600 w-12 shrink-0">${s.sec}</span>
+            <span class="leading-relaxed">${s.text}</span>
+          </div>
+        `).join('')}
+      </div>
+
+      <div class="text-xs bg-white px-3 py-2 rounded mb-3">
+        <div><strong>CTA：</strong>${r.cta}</div>
+        <div class="mt-1 text-stone-600"><strong>轉化目標：</strong>${r.convert}</div>
+      </div>
+
+      <div class="flex gap-2">
+        <button onclick="copyAnalysisRewrite()" class="bg-stone-700 hover:bg-stone-900 text-white text-sm font-bold px-4 py-2 rounded-full">📋 複製這支</button>
+        <button onclick="addAnalysisToWeek()" class="bg-orange-600 hover:bg-orange-700 text-white text-sm font-bold px-4 py-2 rounded-full">✅ 加進本週短影音</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('analyze-result-content').innerHTML = html;
+  document.getElementById('analyze-input-view').classList.add('hidden');
+  document.getElementById('analyze-result-view').classList.remove('hidden');
+
+  // 暫存,給「加進本週」用
+  window._lastAnalysisRewrite = result.rewrite;
+}
+
+function copyAnalysisRewrite() {
+  const r = window._lastAnalysisRewrite;
+  if (!r) return;
+  let text = `📺 【${r.slot}・${r.type}・Mode ${r.mode}】${r.title}\n\n`;
+  text += `🎯 Hook：${r.hook}\n\n📝 分鏡：\n`;
+  r.structure.forEach(s => { text += `  [${s.sec}] ${s.text}\n`; });
+  text += `\n💡 CTA：${r.cta}\n🎯 轉化：${r.convert}`;
+  navigator.clipboard.writeText(text).then(() => showToast('✅ 已複製'));
+}
+
+function addAnalysisToWeek() {
+  const r = window._lastAnalysisRewrite;
+  if (!r) return;
+  // 預設加到「日」當副推（避免覆蓋當週原本內容）
+  const newVideo = { ...r, day: r.day || '日' };
+  videos.push(newVideo);
+  renderVideos();
+  updateTodayTask();
+  showToast('✅ 已加進本週(週日)，可在影片列表看到');
+  closeAnalyze();
 }
 
 function copyToLine() {
