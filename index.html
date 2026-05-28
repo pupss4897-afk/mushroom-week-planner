@@ -1280,7 +1280,7 @@ ${seed ? `**本週方向：** ${seed}\n\n` : ''}${cfg.promptExtra}
       },
       body: JSON.stringify({
         model: s.model,
-        max_tokens: type === 'all' ? 32000 : 16000,
+        max_tokens: type === 'all' ? 48000 : 32000,
         system: SYSTEM_PROMPT,
         messages: [{ role: 'user', content: userPrompt }],
       }),
