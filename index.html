@@ -92,7 +92,7 @@
     <span class="text-sm font-bold text-stone-700 ml-1">AI 生成：</span>
     <button onclick="generatePart('video')" id="gen-video"
             class="bg-orange-600 hover:bg-orange-700 text-white font-bold px-4 py-2 rounded-full shadow text-sm transition disabled:opacity-50">
-      📺 只生短影音 <span class="text-xs opacity-80">~30s</span>
+      📺 只生短影音 <span class="text-xs opacity-80">14 支 · ~90s</span>
     </button>
     <button onclick="generatePart('community')" id="gen-community"
             class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-full shadow text-sm transition disabled:opacity-50">
@@ -178,7 +178,7 @@
   <!-- 📺 公域短影音 -->
   <section class="bg-white rounded-2xl shadow-md p-5">
     <h2 class="text-xl font-black text-stone-800 mb-1 flex items-center">📺 本週公域短影音</h2>
-    <p class="text-xs text-stone-500 mb-4">3 支腳本 · 直接拍 · 含分鏡 + CTA</p>
+    <p class="text-xs text-stone-500 mb-4">14 支腳本（每日 2 更：主推 + 副推）</p>
 
     <div class="space-y-3" id="video-list"></div>
   </section>
@@ -526,18 +526,32 @@ const igStories = {
 };
 
 // ============ RENDER ============
+function typeColor(t) {
+  const m = {
+    '行為': 'bg-blue-100 text-blue-700',
+    '故事': 'bg-purple-100 text-purple-700',
+    'POV': 'bg-yellow-100 text-yellow-800',
+    '認識一隻貓': 'bg-teal-100 text-teal-700',
+    '產品導入': 'bg-rose-100 text-rose-700',
+    '小貓可愛': 'bg-pink-100 text-pink-700',
+    '香菇日常': 'bg-pink-100 text-pink-700',
+  };
+  return m[t] || 'bg-stone-100 text-stone-600';
+}
 function renderVideos() {
   const html = videos.map((v, idx) => `
     <details class="border border-stone-200 rounded-lg card-hover">
       <summary class="px-4 py-3 flex items-center justify-between">
-        <div>
-          <div class="flex items-center gap-2 text-xs font-bold mb-1">
+        <div class="flex-1">
+          <div class="flex items-center gap-1.5 text-xs font-bold mb-1 flex-wrap">
             <span class="bg-orange-100 text-orange-700 px-2 py-0.5 rounded">週${v.day}</span>
+            ${v.slot ? `<span class="${v.slot==='主推'?'bg-red-500 text-white':'bg-stone-400 text-white'} px-2 py-0.5 rounded">${v.slot}</span>` : ''}
+            ${v.type ? `<span class="${typeColor(v.type)} px-2 py-0.5 rounded">${v.type}</span>` : ''}
             <span class="${v.mode==='B'?'bg-rose-100 text-rose-700':'bg-blue-100 text-blue-700'} px-2 py-0.5 rounded">Mode ${v.mode}</span>
           </div>
           <div class="font-bold text-sm">${v.title}</div>
         </div>
-        <span class="chevron text-stone-400">▼</span>
+        <span class="chevron text-stone-400 ml-2">▼</span>
       </summary>
       <div class="px-4 pb-4 text-sm text-stone-700 border-t border-stone-100 pt-3 space-y-2">
         <div class="bg-amber-50 border-l-4 border-amber-400 px-3 py-2 text-xs">
@@ -670,7 +684,9 @@ function showToast(msg) {
 function copyVideo(idx) {
   const v = videos[idx];
   if (!v) return;
-  let text = `📺 【週${v.day}・Mode ${v.mode}】${v.title}\n\n`;
+  const slotLabel = v.slot ? `・${v.slot}` : '';
+  const typeLabel = v.type ? `・[${v.type}]` : '';
+  let text = `📺 【週${v.day}${slotLabel}${typeLabel}・Mode ${v.mode}】${v.title}\n\n`;
   text += `🎯 Hook：${v.hook}\n\n`;
   text += `📝 分鏡腳本：\n`;
   v.structure.forEach(s => { text += `  [${s.sec}] ${s.text}\n`; });
@@ -880,16 +896,21 @@ function updateTodayTask() {
   const labelEl = document.getElementById('today-label');
   if (labelEl) labelEl.textContent = todayLabel;
 
-  // 公域短影音
-  const todayVideo = videos.find(v => v.day === todayCh);
+  // 公域短影音（今天 2 支：主推 + 副推）
+  const todayVideos = videos.filter(v => v.day === todayCh);
   const vTitle = document.getElementById('today-video-title');
   const vMeta = document.getElementById('today-video-meta');
-  if (todayVideo) {
-    if (vTitle) vTitle.textContent = todayVideo.title;
-    if (vMeta) vMeta.textContent = `Mode ${todayVideo.mode} · ${todayVideo.cta || ''}`;
+  if (todayVideos.length > 0) {
+    const lines = todayVideos.map(v => {
+      const slot = v.slot ? `<span class="font-bold text-orange-600">${v.slot}</span>` : '';
+      const type = v.type ? `<span class="text-stone-400">[${v.type}]</span>` : '';
+      return `${slot} ${type} ${v.title}`;
+    });
+    if (vTitle) vTitle.innerHTML = lines.join('<br>');
+    if (vMeta) vMeta.textContent = `共 ${todayVideos.length} 支待拍`;
   } else {
-    if (vTitle) vTitle.textContent = '今天非上片日';
-    if (vMeta) vMeta.textContent = '休息一下，或拍備用素材';
+    if (vTitle) vTitle.textContent = '尚未生成';
+    if (vMeta) vMeta.textContent = '點下方「📺 只生短影音」生成本週腳本';
   }
 
   // 私域話題
@@ -976,6 +997,19 @@ const SYSTEM_PROMPT = `你是綸綸老師(香菇爸)的專屬 AI 內容助理。
 
 ## 📺 短影音腳本 DNA (Mode A / Mode B)
 
+**⚠️ 產量規則：每日 2 支 × 7 天 = 每週 14 支**
+- **主推（每天 1 支）：** 重點影片，**Mode B 教學乾貨型為主**：行為解讀、飼料挑選、健康警示、新手避雷、產品鋪墊
+- **副推（每天 1 支）：** 輕鬆內容，**Mode A 故事/香菇日常/POV/認識一隻貓**
+- **配對：** 一重點 + 一輕鬆，不要兩支都教學
+
+**6 大內容類型（每支必須標 type 欄位）：**
+- 行為（B 教學）：「貓踏踏代表什麼」「為什麼舔人」
+- 故事（A 情緒）：「我家香菇減重」「老貓陪伴」
+- POV 養貓前/後（B 變形）：「養貓前 vs 養貓後的我」「以為養貓很爽，結果...」← **常態，每週 2-3 支**
+- 認識一隻貓（B 系列）：「今天認識英短」「今天認識曼赤肯」← **每週 1-2 支**
+- 產品導入（A 或 B）：「99% 的人選飼料看錯這 3 點」「藍藻菌怎麼幫腸胃」
+- 小貓可愛 / 香菇日常（A）：「香菇打呵欠」「主子的下午茶」
+
 **Mode A(慢、情緒、醫療型):** 健康警示、情緒共鳴、價值觀。Hook 是「斷言式 + 破折號」。每句一行,空行讓呼吸。反結論收尾 + 自我踩煞車。CTA:純陪伴型(留個「有」就好)。
 
 **Mode B(快狠準、教學型):** 冷知識、品種介紹、飼料挑選、行為解讀。Hook 是「問句 / 妳敢信嗎」。3 個點結構(三大禁忌/法則/地雷)。真實香菇案例 + 具體數據。CTA:任務型 + 懶人包(「留言【關鍵字】」)。結尾常加「養貓看香菇爸頻道就對了」。
@@ -1020,6 +1054,8 @@ const SYSTEM_PROMPT = `你是綸綸老師(香菇爸)的專屬 AI 內容助理。
   "videos": [
     {
       "day": "一",
+      "slot": "主推",
+      "type": "行為",
       "mode": "B",
       "title": "...(吸睛標題)",
       "hook": "...(0-3 秒抓人句)",
@@ -1033,7 +1069,10 @@ const SYSTEM_PROMPT = `你是綸綸老師(香菇爸)的專屬 AI 內容助理。
       "cta": "🔵 任務型 · 留言【關鍵字】→ 配《懶人包名》",
       "convert": "藍藻益生菌 / 高端餐飼料 / 無(信任建立)"
     }
-    // 共 3 支,週一/週三/週五,Mode A B 混合
+    // ⚠️ 共 14 支! 每天 2 支(主推+副推) × 7 天
+    // slot 必填:"主推" 或 "副推"
+    // type 必填:行為 / 故事 / POV / 認識一隻貓 / 產品導入 / 小貓可愛
+    // 一週裡 POV 要有 2-3 支(副推),認識一隻貓要有 1-2 支
   ],
   "community": [
     {
@@ -1085,26 +1124,43 @@ const PART_CONFIG = {
   video: {
     label: '📺 短影音',
     btnId: 'gen-video',
-    promptExtra: `**只生成 3 支公域短影音**（週一週三週五，Mode A/B 混合）。
+    promptExtra: `**生成 14 支公域短影音 = 每日 2 支 × 7 天**（主推 + 副推）。
 
-完整套用 Mode A/B 規則，每支含 hook + 5 段分鏡（0-3s/4-15s/16-30s/30-45s/45-60s）+ CTA + 轉化目標。
+⚠️ 必須產出完整 14 支，不可少。
+- **主推（7 支）：** Mode B 教學乾貨為主（行為解讀/飼料挑選/健康/新手避雷/產品鋪墊）
+- **副推（7 支）：** Mode A 故事 + POV + 認識一隻貓 + 香菇日常 混合
+
+**本週必含：**
+- POV 養貓前/後 2-3 支（散在副推）
+- 認識一隻貓 1-2 支（主推或副推）
+- 故事 / 香菇日常 1-2 支（副推）
+- 行為解讀 2-3 支（主推）
+- 產品鋪墊 2-3 支（主推，藍藻 或 高端餐）
+
+每支必含完整 5 段分鏡 + CTA + 轉化目標。
 
 JSON 結構：
 \`\`\`
 {
   "week_range": "5/28 (一) – 6/3 (日)",
   "videos": [
-    {"day":"一","mode":"B","title":"...","hook":"...",
-     "structure":[{"sec":"0-3s","text":"..."}, ...],
-     "cta":"...","convert":"藍藻益生菌"}
+    {"day":"一","slot":"主推","type":"行為","mode":"B","title":"...","hook":"...",
+     "structure":[{"sec":"0-3s","text":"..."}, ...5 段],
+     "cta":"...","convert":"藍藻益生菌"},
+    {"day":"一","slot":"副推","type":"POV","mode":"B","title":"...","hook":"...",
+     "structure":[...],
+     "cta":"...","convert":"無(信任)"},
+    ...共 14 支
   ]
 }
 \`\`\``,
     loadingMsgs: [
-      '挑 Mode A/B 主題分配...',
-      '寫週一短影音腳本...',
-      '寫週三短影音腳本...',
-      '寫週五短影音腳本...',
+      '排 7 天 × 主推+副推結構...',
+      '寫週一/二的主推+副推（4 支）...',
+      '寫週三/四的主推+副推（4 支）...',
+      '寫週五/六的主推+副推（4 支）...',
+      '寫週日的主推+副推（2 支）...',
+      '安排 POV 2-3 支 + 認識一隻貓 1-2 支...',
       '校對 hook + CTA + 香菇案例...',
     ]
   },
