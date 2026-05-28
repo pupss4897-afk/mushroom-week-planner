@@ -1069,11 +1069,11 @@ const SYSTEM_PROMPT = `你是綸綸老師(香菇爸)的專屬 AI 內容助理。
       "cta": "🔵 任務型 · 留言【關鍵字】→ 配《懶人包名》",
       "convert": "藍藻益生菌 / 高端餐飼料 / 無(信任建立)"
     }
-    // ⚠️ 共 14 支! 每天 2 支(主推+副推) × 7 天
-    // slot 必填:"主推" 或 "副推"
-    // type 必填:行為 / 故事 / POV / 認識一隻貓 / 產品導入 / 小貓可愛
-    // 一週裡 POV 要有 2-3 支(副推),認識一隻貓要有 1-2 支
   ],
+  ⚠️ videos 陣列必須包含 14 個物件(每天 2 支 × 7 天)
+  ⚠️ slot 必填:"主推" 或 "副推"
+  ⚠️ type 必填:行為 / 故事 / POV / 認識一隻貓 / 產品導入 / 小貓可愛
+  ⚠️ 一週裡 POV 要 2-3 支(副推),認識一隻貓 1-2 支
   "community": [
     {
       "day": "一",
@@ -1139,21 +1139,37 @@ const PART_CONFIG = {
 
 每支必含完整 5 段分鏡 + CTA + 轉化目標。
 
-JSON 結構：
+JSON 結構（純 JSON，**禁止加 // 註解**）：
 \`\`\`
 {
   "week_range": "5/28 (一) – 6/3 (日)",
-  "videos": [
-    {"day":"一","slot":"主推","type":"行為","mode":"B","title":"...","hook":"...",
-     "structure":[{"sec":"0-3s","text":"..."}, ...5 段],
-     "cta":"...","convert":"藍藻益生菌"},
-    {"day":"一","slot":"副推","type":"POV","mode":"B","title":"...","hook":"...",
-     "structure":[...],
-     "cta":"...","convert":"無(信任)"},
-    ...共 14 支
-  ]
+  "videos": [ ... 14 個 video 物件 ... ]
 }
-\`\`\``,
+\`\`\`
+
+每個 video 物件結構：
+\`\`\`
+{
+  "day": "一",
+  "slot": "主推",
+  "type": "行為",
+  "mode": "B",
+  "title": "...",
+  "hook": "...",
+  "structure": [
+    {"sec": "0-3s", "text": "..."},
+    {"sec": "4-15s", "text": "..."},
+    {"sec": "16-30s", "text": "..."},
+    {"sec": "30-45s", "text": "..."},
+    {"sec": "45-60s", "text": "..."}
+  ],
+  "cta": "...",
+  "convert": "藍藻益生菌"
+}
+\`\`\`
+
+⚠️ videos 陣列**必須剛好 14 個物件**
+⚠️ 輸出**純 JSON**，不要加 // 註解、不要加文字說明、不要 markdown 標籤`,
     loadingMsgs: [
       '排 7 天 × 主推+副推結構...',
       '寫週一/二的主推+副推（4 支）...',
@@ -1303,12 +1319,19 @@ ${seed ? `**本週方向：** ${seed}\n\n` : ''}${cfg.promptExtra}
       jsonText = jsonText.substring(startIdx, endIdx + 1);
     }
 
+    // 清除 AI 可能加進來的 JS 風格註解 (// 行註解 和 /* 區塊註解 */)
+    jsonText = jsonText
+      .replace(/\/\*[\s\S]*?\*\//g, '')           // /* ... */
+      .replace(/(^|[^:"])\/\/[^\n\r]*/g, '$1')   // // ...（避開 https://）
+      .replace(/,(\s*[}\]])/g, '$1');             // 移除尾隨逗號
+
     let plan;
     try {
       plan = JSON.parse(jsonText);
     } catch (parseErr) {
-      console.error('解析失敗的文字:', jsonText.slice(0, 500));
-      throw new Error(`JSON 解析失敗：${parseErr.message}\n原始開頭：${text.slice(0, 100)}...`);
+      console.error('解析失敗的文字（前 500 字）:', jsonText.slice(0, 500));
+      console.error('解析失敗位置附近:', jsonText.slice(Math.max(0, parseErr.message.match(/position (\d+)/)?.[1] - 100 || 0), 500));
+      throw new Error(`JSON 解析失敗：${parseErr.message}\n（已自動去 markdown/註解 仍失敗,可能 AI 輸出有別的問題,F12 看 Console）`);
     }
 
     // 部分更新（不影響其他區塊）
